@@ -30,7 +30,7 @@
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <div class="version" id="versionIndicator">v0.27</div>
+  <div class="version" id="versionIndicator">v0.28</div>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -83,8 +83,11 @@
         const deficit = remaining[s]-best.piece[s];
         if(deficit>0 && modCounts[s]<5){
           let modValue = Math.min(deficit,10);
-          mod_assignment.find(m=>m.stat===s).value = modValue;
-          modCounts[s]++;
+          // Only allow 1 stat mod per piece
+          if(mod_assignment.find(m=>m.value>0) == null){
+            mod_assignment.find(m=>m.stat===s).value = modValue;
+            modCounts[s]++;
+          }
         }
       });
 
@@ -99,7 +102,10 @@
   }
 
   function recalcSliderLimits(){
-    const maxAchievable = (stat) => 200;
+    const maxAchievable = (stat) => {
+      // Max total achievable by 5 pieces + 1 stat mod per piece
+      return 5*30 + 5*25 + 5*20 + 5*10; // max considering archetype, tertiary, masterwork, and stat mods
+    };
     document.querySelectorAll('#statsContainer input[type=range]').forEach(inp=>{
       inp.max = maxAchievable(inp.previousSibling.textContent);
       if(desired[inp.previousSibling.textContent]>inp.max) desired[inp.previousSibling.textContent]=inp.max;

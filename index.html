@@ -80,7 +80,6 @@
       let mod_assignment = STATS.map(s=>({stat:s,value:0, tuning:false, regular:false}));
       let regularUsed=false, tuningUsed=false;
 
-      // Apply +10 mod if needed
       STATS.forEach(s=>{
         if(!regularUsed && remaining[s]-best.piece[s]>=10){
           mod_assignment.find(m=>m.stat===s).value+=10;
@@ -90,7 +89,6 @@
         }
       });
 
-      // Apply +5 tuning mod if needed
       STATS.forEach(s=>{
         if(!tuningUsed && remaining[s]-best.piece[s]>=5){
           mod_assignment.find(m=>m.stat===s).value+=5;
@@ -100,9 +98,7 @@
         }
       });
 
-      // Ensure remaining never goes negative
       STATS.forEach(s=>{ if(remaining[s]<0) remaining[s]=0; });
-
       chosen.push({...best, mod_assignment});
     }
 
@@ -131,15 +127,6 @@
       });
       el.append(header,legend,table); piecesEl.appendChild(el);
     });
-
-    // Update sliders max based on achievable totals
-    STATS.forEach(stat=>{
-      const slider = document.querySelector(`input[type=range][data-stat='${stat}']`);
-      if(slider){
-        let maxAchievable = Math.min(maxStatPossible(), desired[stat]+0); // can compute dynamically if needed
-        slider.max = maxAchievable;
-      }
-    });
   }
 
   function renderSliders(){
@@ -151,7 +138,15 @@
       slider.type='range'; slider.min=0; slider.max=maxStatPossible(); slider.step=5; slider.value=desired[stat];
       slider.dataset.stat = stat;
       const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
+      slider.addEventListener('input', e=>{
+        let statName = e.target.dataset.stat;
+        let valInt = parseInt(e.target.value,10);
+        // Clamp value to achievable maximum dynamically
+        valInt = Math.min(valInt, maxStatPossible());
+        desired[statName] = valInt;
+        val.textContent = valInt;
+        recalc();
+      });
       card.append(label,slider,val); wrap.append(card);
     });
   }

@@ -26,7 +26,7 @@
     .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
     .small{font-size:.85rem;color:var(--muted)}
     .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
-    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;flex-direction:column;gap:2px}
+    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;align-items:center;margin-bottom:4px}
     .stat-mod{font-size:.8rem;color:var(--accent);margin-left:6px}
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
     .toggle{margin-left:auto}
@@ -109,7 +109,6 @@
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      // Assign a single stat mod per piece for the stat that needs most
       const neededStats = STATS.map(s=>remaining[s]-best.piece[s]).map((v,i)=>({stat:STATS[i],value:Math.max(0,v)}));
       neededStats.sort((a,b)=>b.value-a.value);
       best.mod_assignment = neededStats.map((m,i)=>i===0?{stat:m.stat,value:Math.min(m.value,10)}:{stat:m.stat,value:0});
@@ -124,7 +123,7 @@
       const card=document.createElement('div'); card.className='card';
       const label=document.createElement('label'); label.textContent=stat;
       const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
-      const val=document.createElement('div'); val.className='small'; val.textContent=desired[stat];
+      const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
       slider.addEventListener('input', e=>{ desired[stat]=Math.min(200, parseInt(e.target.value,10)); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
     });
@@ -146,12 +145,8 @@
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
-        row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`;
         const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
-        if(mod){
-          const modRow=document.createElement('div'); modRow.className='stat-mod'; modRow.textContent=`Stat Mod: +${mod.value} ${mod.stat}`;
-          row.appendChild(modRow);
-        }
+        row.innerHTML=`<span>${s}: ${c.piece[s]}${mod?` (Stat Mod: +${mod.value})`:''}</span>`;
         table.appendChild(row);
       });
       el.append(header,legend,table); piecesEl.appendChild(el);

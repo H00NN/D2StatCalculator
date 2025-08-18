@@ -26,7 +26,8 @@
     .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
     .small{font-size:.85rem;color:var(--muted)}
     .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
-    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
+    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;flex-direction:column;gap:2px}
+    .stat-mod{font-size:.8rem;color:var(--accent)}
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
     .toggle{margin-left:auto}
     .cap{font-size:.9rem;color:var(--muted)}
@@ -88,8 +89,8 @@
   function computeCaps(){
     const baseCap = statObj( mode==='balanced' ? 150 : 175 );
     const maxWithMods = statObj(0);
-    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10*5; });
-    document.getElementById('caps').textContent = `Per-stat cap including stat mods: ${maxWithMods[STATS[0]]}`;
+    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10; }); // single mod per piece
+    document.getElementById('caps').textContent = `Per-stat cap including single stat mod per piece: ${maxWithMods[STATS[0]]}`;
     return maxWithMods;
   }
 
@@ -108,14 +109,17 @@
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      // Calculate mods per stat without compounding duplicates
+      // Assign a single stat mod per piece
       best.mod_assignment = STATS.map(s=>{
-        let over = remaining[s]-best.piece[s];
-        if(over>0){
-          const modValue = Math.min(over,10);
-          return {stat:s,value:modValue};
-        } else return {stat:s,value:0};
+        let needed = remaining[s]-best.piece[s];
+        if(needed>0){
+          return {stat:s,value:Math.min(needed,10)};
+        } return {stat:s,value:0};
       });
+      // Only one mod per piece: pick the stat with highest needed
+      best.mod_assignment.sort((a,b)=>b.value-a.value);
+      best.mod_assignment = best.mod_assignment.map((m,i)=> i===0 ? m : {stat:m.stat,value:0});
+
       chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
     }
     return {chosen, remaining};
@@ -137,11 +141,11 @@
     const caps=computeCaps();
     const over = STATS.filter(s=>desired[s]>caps[s]);
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with mods: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
+    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with single stat mod per piece: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
     if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }
-    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear and stat mods.'; document.getElementById('notes').textContent=''; }
+    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear and single stat mod per piece.'; document.getElementById('notes').textContent=''; }
     plan.chosen.forEach((c,idx)=>{
       const el=document.createElement('div'); el.className='piece';
       const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
@@ -149,8 +153,11 @@
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
-        let modInfo = c.mod_assignment.find(m=>m.stat===s)?.value || 0;
-        row.innerHTML=`<span>${s}</span><span>${c.piece[s]} (${modInfo>0 ? '+'+modInfo+' stat mod' : '+0'})</span>`; table.append(row); });
+        row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`;
+        const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
+        if(mod){ const modRow=document.createElement('div'); modRow.className='stat-mod'; modRow.textContent=`Stat Mod: +${mod.value} ${mod.stat}`; row.append(modRow); }
+        table.append(row);
+      });
       el.append(header,legend,table); piecesEl.append(el);
     });
   }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Destiny 2 Build Creator (Armor 3.0 + Mods)</title>
+  <title>Destiny 2 Build Creator (Armor 3.0)</title>
   <style>
     :root{--bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa}
     *{box-sizing:border-box}
@@ -30,34 +30,21 @@
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
     .toggle{margin-left:auto}
     .cap{font-size:.9rem;color:var(--muted)}
-    .mod-section{margin-top:16px;background:#1a1c2d;border-radius:10px;padding:12px;}
   </style>
 </head>
 <body>
-  <h1>Destiny 2 Build Creator — Armor 3.0 + Mods</h1>
-  <p class="small">Armor 3.0 with Masterwork redistribution, optional Tuning, plus Minor/Major Stat Mods, Font Mods, and Subclass Fragments.</p>
+  <h1>Destiny 2 Build Creator — Armor 3.0</h1>
+  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning.</p>
 
   <div class="row">
     <div class="mode-toggle">
       <button id="balancedBtn" class="active">Balanced Tuning</button>
-      <button id="tuningBtn" class="inactive">Stat Tuning Mods</button>
+      <button id="tuningBtn" class="inactive">Stat Tuning</button>
     </div>
     <div class="toggle cap" id="caps"></div>
   </div>
 
   <div id="statsContainer" class="grid"></div>
-
-  <div class="mod-section">
-    <h3>Armor Mods & Fragments</h3>
-    <label>Minor Stat Mod (+5 per piece, max 5)</label>
-    <input type="number" id="minorMods" min="0" max="5" value="0">
-    <label>Major Stat Mod (+10 per piece, max 5)</label>
-    <input type="number" id="majorMods" min="0" max="5" value="0">
-    <label>Font Mods (choose 1-3)</label>
-    <input type="number" id="fontMods" min="0" max="3" value="0">
-    <label>Subclass Fragments (positive/negative per stat, comma-separated, e.g., Grenade:+5,Super:-5)</label>
-    <input type="text" id="fragments" placeholder="Grenade:+5,Super:-5">
-  </div>
 
   <div class="result"><p id="feasibility"></p></div>
   <div id="pieces" class="pieces"></div>
@@ -79,7 +66,6 @@
 
   const clone = o => JSON.parse(JSON.stringify(o));
   function statObj(fill=0){const o={}; STATS.forEach(s=>o[s]=fill); return o;}
-  function add(a,b){const o={}; STATS.forEach(s=>o[s]=(a[s]||0)+(b[s]||0)); return o;}
   function sub(a,b){const o={}; STATS.forEach(s=>o[s]=(a[s]||0)-(b[s]||0)); return o;}
   function capFloor(o){const r={}; STATS.forEach(s=>{r[s]=Math.max(0, o[s]);}); return r;}
 
@@ -96,29 +82,8 @@
       const candidates = STATS.filter(s=>s!==tuned).map(s=>({s,v:dist[s]})).sort((a,b)=>b.v-a.v);
       let donor = candidates[0].s;
       dist[tuned]+=5; dist[donor]-=5;
-      dist.__tuned = tuned; dist.__donor = donor;
     }
     return dist;
-  }
-
-  function applyMods(pieces){
-    const minor = parseInt(document.getElementById('minorMods').value)||0;
-    const major = parseInt(document.getElementById('majorMods').value)||0;
-    const font = parseInt(document.getElementById('fontMods').value)||0;
-    const fragmentInput = document.getElementById('fragments').value;
-    const fragments = {};
-    if(fragmentInput.trim()){ fragmentInput.split(',').forEach(f=>{ const [k,v]=f.split(':'); if(k&&v) fragments[k.trim()]=parseInt(v); }); }
-
-    return pieces.map(p=>{
-      const modified = clone(p.piece);
-      STATS.forEach(s=>{
-        modified[s]+=(minor*5); modified[s]+=(major*10);
-        if(font>0) modified[s]+=(font*20);
-        if(fragments[s]) modified[s]+=fragments[s];
-      });
-      p.modified = modified;
-      return p;
-    });
   }
 
   function computeCaps(){
@@ -162,18 +127,17 @@
     const caps=computeCaps();
     const over = STATS.filter(s=>desired[s]>caps[s]);
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Impossible with gear alone (${mode==='balanced'?'Balanced':'Tuning'}): ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats or add mods/fragments.'; return; }
+    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Impossible with gear alone (${mode==='balanced'?'Balanced':'Tuning'}): ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
     let plan = planPieces(desired);
-    plan.chosen = applyMods(plan.chosen);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
-    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear-only plan leaves unmet deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Add additional mods/fragments to complete.'; }
-    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear and selected mods/fragments.'; document.getElementById('notes').textContent=''; }
+    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear-only plan leaves unmet deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }
+    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear alone.'; document.getElementById('notes').textContent=''; }
     plan.chosen.forEach((c,idx)=>{
       const el=document.createElement('div'); el.className='piece';
       const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
       const legend=document.createElement('div'); legend.className='legend';
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
-      const table=document.createElement('div'); STATS.forEach(s=>{ const row=document.createElement('div'); row.className='statline'; row.innerHTML=`<span>${s}</span><span>${c.modified[s]}</span>`; table.append(row); });
+      const table=document.createElement('div'); STATS.forEach(s=>{ const row=document.createElement('div'); row.className='statline'; row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`; table.append(row); });
       el.append(header,legend,table); piecesEl.append(el);
     });
   }
@@ -184,5 +148,4 @@
   renderSliders(); recalc();
 </script>
 </body>
-</html>
 </html>

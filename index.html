@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Destiny 2 Build Creator (Armor 4.3)</title>
+  <title>Destiny 2 Build Creator (Armor 4.4)</title>
   <style>
     :root{--bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa}
     *{box-sizing:border-box}
@@ -28,8 +28,8 @@
   </style>
 </head>
 <body>
-  <h1>Destiny 2 Build Creator — Armor 4.3</h1>
-  <div class="version" id="versionIndicator">v0.33</div>
+  <h1>Destiny 2 Build Creator — Armor 4.4</h1>
+  <div class="version" id="versionIndicator">v0.34</div>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -77,13 +77,24 @@
         }
       }
 
-      // Assign stat mod +10 and stat tuning +5 independently per piece
+      // Assign one +10 stat mod and one +5 stat tuning mod per piece only
       let mod_assignment = STATS.map(s=>({stat:s,value:0, tuning:false, regular:false}));
+      let regularAssigned=false, tuningAssigned=false;
       STATS.forEach(s=>{
-        if(remaining[s]-best.piece[s]>=10){ mod_assignment.find(m=>m.stat===s).value+=10; mod_assignment.find(m=>m.stat===s).regular=true; remaining[s]-=10; }
+        if(!regularAssigned && remaining[s]-best.piece[s]>=10){
+          mod_assignment.find(m=>m.stat===s).value+=10;
+          mod_assignment.find(m=>m.stat===s).regular=true;
+          remaining[s]-=10;
+          regularAssigned=true;
+        }
       });
       STATS.forEach(s=>{
-        if(remaining[s]-best.piece[s]>0){ mod_assignment.find(m=>m.stat===s).value+=5; mod_assignment.find(m=>m.stat===s).tuning=true; remaining[s]-=5; }
+        if(!tuningAssigned && remaining[s]-best.piece[s]>0){
+          mod_assignment.find(m=>m.stat===s).value+=5;
+          mod_assignment.find(m=>m.stat===s).tuning=true;
+          remaining[s]-=5;
+          tuningAssigned=true;
+        }
       });
 
       chosen.push({...best, mod_assignment});
@@ -150,4 +161,3 @@
 </script>
 </body>
 </html>
-

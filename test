@@ -1,82 +1,153 @@
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Destiny 2 Build Creator</title>
+  <style>
+    body {
+      background: #0f0f1a;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+    .mode-toggle button {
+      padding: 8px 16px;
+      margin-right: 10px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .active {
+      background: #4ade80;
+      color: #000;
+    }
+    .inactive {
+      background: #333;
+      color: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin-top: 20px;
+    }
+    .card {
+      background: #1e1e2f;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 8px;
+    }
+    input[type=range] {
+      width: 100%;
+    }
+    .result {
+      margin-top: 20px;
+      font-size: 1.1rem;
+    }
+    .ok { color: #4ade80; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>Destiny 2 Build Creator</h1>
 
-const STATS = ["Super", "Melee", "Class", "Grenade", "Health", "Weapons"];
+  <div class="mode-toggle">
+    <button id="balancedBtn" class="active">Balanced Tuning</button>
+    <button id="tuningBtn" class="inactive">Stat Tuning Mods</button>
+  </div>
 
-export default function D2BuildCreator() {
-  const [desiredStats, setDesiredStats] = useState(
-    Object.fromEntries(STATS.map((s) => [s, 0]))
-  );
-  const [mode, setMode] = useState("balanced"); // balanced or tuning
+  <div id="statsContainer" class="grid"></div>
 
-  const MAX_POINTS = mode === "balanced" ? 103 * 5 : 100 * 5; // approx
-  const totalDesired = Object.values(desiredStats).reduce(
-    (a, b) => a + b,
-    0
-  );
+  <div class="result">
+    <p id="totalDisplay"></p>
+    <p id="feasibility"></p>
+  </div>
 
-  const handleChange = (stat, value) => {
-    setDesiredStats({ ...desiredStats, [stat]: Number(value) });
-  };
+<script>
+  const STATS = ["Super", "Melee", "Class", "Grenade", "Health", "Weapons"];
+  let desiredStats = Object.fromEntries(STATS.map(s => [s, 0]));
+  let mode = "balanced";
 
-  const feasible = totalDesired <= MAX_POINTS;
+  const statsContainer = document.getElementById("statsContainer");
+  const totalDisplay = document.getElementById("totalDisplay");
+  const feasibility = document.getElementById("feasibility");
+  const balancedBtn = document.getElementById("balancedBtn");
+  const tuningBtn = document.getElementById("tuningBtn");
 
-  return (
-    <div className="min-h-screen bg-gray-950 text-white p-8">
-      <h1 className="text-3xl font-bold mb-6">Destiny 2 Build Creator</h1>
+  function renderSliders() {
+    statsContainer.innerHTML = "";
+    STATS.forEach(stat => {
+      const card = document.createElement("div");
+      card.className = "card";
 
-      <div className="flex gap-4 mb-6">
-        <Button
-          variant={mode === "balanced" ? "default" : "outline"}
-          onClick={() => setMode("balanced")}
-        >
-          Balanced Tuning
-        </Button>
-        <Button
-          variant={mode === "tuning" ? "default" : "outline"}
-          onClick={() => setMode("tuning")}
-        >
-          Stat Tuning Mods
-        </Button>
-      </div>
+      const label = document.createElement("label");
+      label.innerText = stat;
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {STATS.map((stat) => (
-          <Card key={stat} className="bg-gray-900">
-            <CardContent className="p-4">
-              <label className="block mb-2 font-semibold">{stat}</label>
-              <input
-                type="range"
-                min="0"
-                max="200"
-                step="5"
-                value={desiredStats[stat]}
-                onChange={(e) => handleChange(stat, e.target.value)}
-                className="w-full"
-              />
-              <div className="mt-2 text-sm">{desiredStats[stat]}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = 0;
+      slider.max = 200;
+      slider.step = 5;
+      slider.value = desiredStats[stat];
+      slider.addEventListener("input", e => {
+        desiredStats[stat] = parseInt(e.target.value);
+        updateTotals();
+        valueDisplay.innerText = desiredStats[stat];
+      });
 
-      <div className="mt-6">
-        <p className="text-lg">
-          Total Desired: <span className="font-bold">{totalDesired}</span> /
-          {MAX_POINTS}
-        </p>
-        {!feasible && (
-          <p className="text-red-400 mt-2">
-            ❌ Impossible build – exceeds maximum stat budget.
-          </p>
-        )}
-        {feasible && (
-          <p className="text-green-400 mt-2">
-            ✅ Build is within limits. Archetype suggestion logic coming here.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
+      const valueDisplay = document.createElement("div");
+      valueDisplay.style.marginTop = "6px";
+      valueDisplay.innerText = desiredStats[stat];
+
+      card.appendChild(label);
+      card.appendChild(slider);
+      card.appendChild(valueDisplay);
+      statsContainer.appendChild(card);
+    });
+  }
+
+  function updateTotals() {
+    const MAX_POINTS = mode === "balanced" ? 103 * 5 : 100 * 5;
+    const totalDesired = Object.values(desiredStats).reduce((a,b) => a+b, 0);
+
+    totalDisplay.innerText = `Total Desired: ${totalDesired} / ${MAX_POINTS}`;
+    if(totalDesired > MAX_POINTS){
+      feasibility.innerText = "❌ Impossible build – exceeds maximum stat budget.";
+      feasibility.className = "error";
+    } else {
+      feasibility.innerText = "✅ Build is within limits. Archetype suggestion logic coming here.";
+      feasibility.className = "ok";
+    }
+  }
+
+  balancedBtn.addEventListener("click", () => {
+    mode = "balanced";
+    balancedBtn.className = "active";
+    tuningBtn.className = "inactive";
+    updateTotals();
+  });
+
+  tuningBtn.addEventListener("click", () => {
+    mode = "tuning";
+    tuningBtn.className = "active";
+    balancedBtn.className = "inactive";
+    updateTotals();
+  });
+
+  renderSliders();
+  updateTotals();
+</script>
+</body>
+</html>

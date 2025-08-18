@@ -1,157 +1,122 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Destiny 2 Build Creator (Armor 4.7)</title>
-  <style>
-    :root{--bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa}
-    *{box-sizing:border-box}
-    body{background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,Apple Color Emoji,Segoe UI Emoji;margin:0;padding:24px;position:relative}
-    h1{font-size:1.75rem;margin:0 0 8px}
-    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
-    .card{background:var(--card);border:1px solid #2b2e55;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
-    label{font-weight:700;display:block;margin-bottom:8px}
-    input[type=range]{width:100%}
-    .result{margin-top:16px;font-size:1.05rem}
-    .ok{color:var(--ok)}.error{color:var(--bad)}
-    .pieces{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
-    .piece{background:#1f2140;border:1px solid #2e315e;border-radius:10px;padding:12px}
-    .piece h3{margin:0 0 6px;font-size:1rem}
-    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
-    .small{font-size:.85rem;color:var(--muted)}
-    .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
-    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;align-items:center;margin-bottom:4px}
-    .stat-mod{font-size:.8rem;color:var(--accent);margin-left:6px}
-    .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
-    .version{position:absolute;top:24px;right:24px;color:var(--muted);font-size:.9rem}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Destiny 2 Build Creator — Inspired by D2ArmorPicker</title>
+<style>
+  body{background:#0f1020;color:#fff;font-family:ui-sans-serif,system-ui;margin:0;padding:24px;}
+  h1{font-size:1.75rem;margin-bottom:16px}
+  .version{position:absolute;top:24px;right:24px;color:#9aa3b2;font-size:.9rem}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+  .card{background:#191a2e;border-radius:12px;padding:14px;}
+  label{font-weight:700;display:block;margin-bottom:8px}
+  input[type=range]{width:100%}
+  .pieces{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
+  .piece{background:#1f2140;border-radius:10px;padding:12px}
+  .piece h3{margin:0 0 6px;font-size:1rem}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
+  .statline{display:flex;justify-content:space-between;margin-bottom:4px}
+  .stat-mod{font-size:.8rem;color:#60a5fa;margin-left:6px}
+</style>
 </head>
 <body>
-  <h1>Destiny 2 Build Creator — Armor 4.7</h1>
-  <div class="version" id="versionIndicator">v0.37</div>
-
-  <div id="statsContainer" class="grid"></div>
-  <div class="result"><p id="feasibility"></p></div>
-  <div id="pieces" class="pieces"></div>
-  <div class="footer small" id="notes"></div>
-
+<h1>Destiny 2 Build Creator — Armor 5.0</h1>
+<div class="version" id="versionIndicator">v0.50</div>
+<div id="statsContainer" class="grid"></div>
+<div id="pieces" class="pieces"></div>
 <script>
-  const STATS = ["Super","Melee","Class","Grenade","Health","Weapons"];
-  const ARCHETYPES = [
-    {key:"Paragon", primary:"Super", secondary:"Melee"},
-    {key:"Grenadier", primary:"Grenade", secondary:"Super"},
-    {key:"Specialist", primary:"Class", secondary:"Weapons"},
-    {key:"Brawler", primary:"Melee", secondary:"Health"},
-    {key:"Bulwark", primary:"Health", secondary:"Class"},
-    {key:"Gunner", primary:"Weapons", secondary:"Grenade"}
-  ];
+const STATS=["Super","Melee","Class","Grenade","Health","Weapons"];
+const ARCHETYPES=[
+  {key:"Paragon",primary:"Super",secondary:"Melee"},
+  {key:"Grenadier",primary:"Grenade",secondary:"Super"},
+  {key:"Specialist",primary:"Class",secondary:"Weapons"},
+  {key:"Brawler",primary:"Melee",secondary:"Health"},
+  {key:"Bulwark",primary:"Health",secondary:"Class"},
+  {key:"Gunner",primary:"Weapons",secondary:"Grenade"}
+];
 
-  let desired = Object.fromEntries(STATS.map(s=>[s,0]));
+let desired=Object.fromEntries(STATS.map(s=>[s,0]));
 
-  function statObj(fill=0){const o={}; STATS.forEach(s=>o[s]=fill); return o;}
+function statObj(fill=0){const o={};STATS.forEach(s=>o[s]=fill);return o;}
 
-  function pieceDistribution(archetype, tertiary){
-    const dist = statObj(0);
-    dist[archetype.primary]=30;
-    dist[archetype.secondary]=25;
-    dist[tertiary]=20;
-    STATS.forEach(s=>{ if(s!==archetype.primary && s!==archetype.secondary && s!==tertiary) dist[s]+=5; });
-    return dist;
-  }
+function pieceDistribution(arch,tertiary){
+  const dist=statObj();
+  dist[arch.primary]=30; dist[arch.secondary]=25; dist[tertiary]=20;
+  STATS.forEach(s=>{if(s!==arch.primary && s!==arch.secondary && s!==tertiary) dist[s]+=5});
+  return dist;
+}
 
-  function maxStatPossible(){ return 200; }
-
-  function planPieces(target){
-    let remaining = Object.fromEntries(STATS.map(s=>[s,target[s]]));
-    let chosen=[];
-
-    for(let i=0;i<5;i++){
-      let best=null, bestScore=-Infinity;
-      for(const arch of ARCHETYPES){
-        const tertOptions = STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
-        for(const t of tertOptions){
-          let piece = pieceDistribution(arch,t);
-          let score=0; STATS.forEach(s=>{ score+=Math.min(piece[s], remaining[s]); });
-          if(score>bestScore){ bestScore=score; best={arch,tertiary:t,piece}; }
-        }
+function planPieces(target){
+  let remaining=Object.fromEntries(STATS.map(s=>[s,target[s]])),chosen=[];
+  for(let i=0;i<5;i++){
+    let best=null,bestScore=-Infinity;
+    for(const arch of ARCHETYPES){
+      const tertOptions=STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
+      for(const t of tertOptions){
+        const piece=pieceDistribution(arch,t);
+        let score=0;STATS.forEach(s=>score+=Math.min(piece[s],remaining[s]));
+        if(score>bestScore) bestScore=score,best={arch,tertiary:t,piece};
       }
-
-      let mod_assignment = STATS.map(s=>({stat:s,value:0, tuning:false, regular:false}));
-      let regularUsed=false, tuningUsed=false;
-
-      STATS.forEach(s=>{
-        if(!regularUsed && remaining[s]-best.piece[s]>=10){
-          mod_assignment.find(m=>m.stat===s).value+=10;
-          mod_assignment.find(m=>m.stat===s).regular=true;
-          remaining[s]-=10;
-          regularUsed=true;
-        }
-      });
-
-      STATS.forEach(s=>{
-        if(!tuningUsed && remaining[s]-best.piece[s]>=5){
-          mod_assignment.find(m=>m.stat===s).value+=5;
-          mod_assignment.find(m=>m.stat===s).tuning=true;
-          remaining[s]-=5;
-          tuningUsed=true;
-        }
-      });
-
-      STATS.forEach(s=>{ if(remaining[s]<0) remaining[s]=0; });
-      chosen.push({...best, mod_assignment});
     }
 
-    return chosen;
-  }
-
-  function recalc(){
-    const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    let plan = planPieces(desired);
-
-    plan.forEach((c,idx)=>{
-      const el=document.createElement('div'); el.className='piece';
-      const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
-      const legend=document.createElement('div'); legend.className='legend';
-      legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span>`;
-      const table=document.createElement('div'); STATS.forEach(s=>{
-        const row=document.createElement('div'); row.className='statline';
-        const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
-        let modText = '';
-        if(mod){
-          if(mod.regular) modText += 'Equip +10 Mod';
-          if(mod.tuning) modText += (modText?' & ':'')+'Stat Tuning +5';
-        }
-        row.innerHTML=`<span>${s}: ${c.piece[s]}${modText?` (${modText})`:''}</span>`;
-        table.appendChild(row);
-      });
-      el.append(header,legend,table); piecesEl.appendChild(el);
+    let modAssignment=STATS.map(s=>({stat:s,value:0,regular:false,tuning:false}));
+    let regularUsed=false,tuningUsed=false;
+    STATS.forEach(s=>{
+      if(!regularUsed && remaining[s]-best.piece[s]>=10){
+        const m=modAssignment.find(m=>m.stat===s); m.value+=10; m.regular=true; remaining[s]-=10; regularUsed=true;
+      }
     });
-  }
-
-  function renderSliders(){
-    const wrap = document.getElementById('statsContainer'); wrap.innerHTML='';
-    STATS.forEach(stat=>{
-      const card=document.createElement('div'); card.className='card';
-      const label=document.createElement('label'); label.textContent=stat;
-      const slider=document.createElement('input');
-      slider.type='range'; slider.min=0; slider.max=maxStatPossible(); slider.step=5; slider.value=desired[stat];
-      slider.dataset.stat = stat;
-      const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{
-        let statName = e.target.dataset.stat;
-        let valInt = parseInt(e.target.value,10);
-        // Clamp value to achievable maximum dynamically
-        valInt = Math.min(valInt, maxStatPossible());
-        desired[statName] = valInt;
-        val.textContent = valInt;
-        recalc();
-      });
-      card.append(label,slider,val); wrap.append(card);
+    STATS.forEach(s=>{
+      if(!tuningUsed && remaining[s]-best.piece[s]>=5){
+        const m=modAssignment.find(m=>m.stat===s); m.value+=5; m.tuning=true; remaining[s]-=5; tuningUsed=true;
+      }
     });
+    STATS.forEach(s=>{if(remaining[s]<0) remaining[s]=0});
+    chosen.push({...best,modAssignment});
   }
+  return chosen;
+}
 
-  renderSliders(); recalc();
+function recalc(){
+  const piecesEl=document.getElementById('pieces'); piecesEl.innerHTML='';
+  const plan=planPieces(desired);
+  plan.forEach((c,idx)=>{
+    const el=document.createElement('div'); el.className='piece';
+    el.innerHTML=`<h3>Piece ${idx+1}: ${c.arch.key}</h3>`;
+    const legend=document.createElement('div'); legend.className='pill';
+    legend.textContent=`Primary: ${c.arch.primary} +30 | Secondary: ${c.arch.secondary} +25 | Tertiary: ${c.tertiary} +20`;
+    el.appendChild(legend);
+    STATS.forEach(s=>{
+      const row=document.createElement('div'); row.className='statline';
+      const mod=c.modAssignment.find(m=>m.stat===s && m.value>0);
+      let modText='';
+      if(mod){if(mod.regular) modText+='Equip +10 Mod'; if(mod.tuning) modText+=(modText?' & ':'')+'Stat Tuning +5';}
+      row.textContent=`${s}: ${c.piece[s]}${modText?` (${modText})`:''}`;
+      el.appendChild(row);
+    });
+    piecesEl.appendChild(el);
+  });
+}
+
+function renderSliders(){
+  const wrap=document.getElementById('statsContainer'); wrap.innerHTML='';
+  STATS.forEach(stat=>{
+    const card=document.createElement('div'); card.className='card';
+    const label=document.createElement('label'); label.textContent=stat;
+    const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
+    const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
+    slider.addEventListener('input', e=>{
+      let valInt=parseInt(e.target.value,10);
+      desired[stat]=Math.min(valInt,200);
+      val.textContent=desired[stat];
+      recalc();
+    });
+    card.append(label,slider,val); wrap.appendChild(card);
+  });
+}
+
+renderSliders(); recalc();
 </script>
 </body>
 </html>

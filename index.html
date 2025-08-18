@@ -30,7 +30,7 @@
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <div class="version" id="versionIndicator">v0.26</div>
+  <div class="version" id="versionIndicator">v0.27</div>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -65,6 +65,8 @@
   function planPieces(target){
     let remaining = clone(target);
     let chosen=[];
+    let modCounts = {}; STATS.forEach(s=>modCounts[s]=0);
+
     for(let i=0;i<5;i++){
       let best=null,bestScore=-Infinity;
       for(const arch of ARCHETYPES){
@@ -77,14 +79,16 @@
       }
 
       let mod_assignment = STATS.map(s=>({stat:s,value:0}));
-      let deficits = STATS.map(s=>({s,val:remaining[s]-best.piece[s]})).filter(d=>d>0);
-      if(deficits.length){
-        // Assign 1 stat mod per piece correctly to maximize achievable stat
-        let top = deficits.reduce((a,b)=>a.val>b.val?a:b);
-        mod_assignment.find(m=>m.stat===top.s).value = Math.min(10, top.val);
-      }
-      best.mod_assignment = mod_assignment;
+      STATS.forEach(s=>{
+        const deficit = remaining[s]-best.piece[s];
+        if(deficit>0 && modCounts[s]<5){
+          let modValue = Math.min(deficit,10);
+          mod_assignment.find(m=>m.stat===s).value = modValue;
+          modCounts[s]++;
+        }
+      });
 
+      best.mod_assignment = mod_assignment;
       chosen.push(best);
       STATS.forEach(s=>{
         remaining[s]-=(best.piece[s]+best.mod_assignment.find(m=>m.stat===s).value);
@@ -95,15 +99,7 @@
   }
 
   function recalcSliderLimits(){
-    const maxAchievable = (stat) => {
-      const primaryMax = 5*30;
-      const secondaryMax = 5*25;
-      const tertiaryMax = 5*20;
-      const masterworkMax = 5*3*5;
-      const modMax = 5*10;
-      const totalMax = primaryMax + secondaryMax + tertiaryMax + masterworkMax + modMax;
-      return Math.min(totalMax,200);
-    };
+    const maxAchievable = (stat) => 200;
     document.querySelectorAll('#statsContainer input[type=range]').forEach(inp=>{
       inp.max = maxAchievable(inp.previousSibling.textContent);
       if(desired[inp.previousSibling.textContent]>inp.max) desired[inp.previousSibling.textContent]=inp.max;

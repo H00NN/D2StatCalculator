@@ -7,9 +7,8 @@
   <style>
     :root{--bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa}
     *{box-sizing:border-box}
-    body{background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,Apple Color Emoji,Segoe UI Emoji;margin:0;padding:24px}
+    body{background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,Apple Color Emoji,Segoe UI Emoji;margin:0;padding:24px;position:relative}
     h1{font-size:1.75rem;margin:0 0 8px}
-    p{color:var(--muted)}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
     .card{background:var(--card);border:1px solid #2b2e55;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
     label{font-weight:700;display:block;margin-bottom:8px}
@@ -26,11 +25,12 @@
     .stat-mod{font-size:.8rem;color:var(--accent);margin-left:6px}
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
     .cap{font-size:.9rem;color:var(--muted)}
+    .version{position:absolute;top:24px;right:24px;color:var(--muted);font-size:.9rem}
   </style>
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <p class="small">Armor 3.0 with Masterwork (+5 to three lowest stats), minor/major stat mods (+5/+10, 1 per piece), and automatic tuning (+1 balanced or +5/-5 stat tuning) applied as required. Slider limits now respect achievable maximums.</p>
+  <div class="version" id="versionIndicator">v0.26</div>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -76,10 +76,10 @@
         }
       }
 
-      // Assign 1 stat mod per piece to highest remaining deficit
       let mod_assignment = STATS.map(s=>({stat:s,value:0}));
       let deficits = STATS.map(s=>({s,val:remaining[s]-best.piece[s]})).filter(d=>d>0);
       if(deficits.length){
+        // Assign 1 stat mod per piece correctly to maximize achievable stat
         let top = deficits.reduce((a,b)=>a.val>b.val?a:b);
         mod_assignment.find(m=>m.stat===top.s).value = Math.min(10, top.val);
       }
@@ -96,11 +96,10 @@
 
   function recalcSliderLimits(){
     const maxAchievable = (stat) => {
-      // compute max achievable stat based on archetypes, masterwork, and 1 stat mod per piece
       const primaryMax = 5*30;
       const secondaryMax = 5*25;
       const tertiaryMax = 5*20;
-      const masterworkMax = 5*3*5; // max 3 stats per piece +5 each
+      const masterworkMax = 5*3*5;
       const modMax = 5*10;
       const totalMax = primaryMax + secondaryMax + tertiaryMax + masterworkMax + modMax;
       return Math.min(totalMax,200);
@@ -145,6 +144,11 @@
       });
       el.append(header,legend,table); piecesEl.appendChild(el);
     });
+
+    const versionEl = document.getElementById('versionIndicator');
+    let currentVersion = parseFloat(versionEl.textContent.replace('v',''));
+    currentVersion = (currentVersion + 0.01).toFixed(2);
+    versionEl.textContent = `v${currentVersion}`;
   }
 
   renderSliders(); recalc();

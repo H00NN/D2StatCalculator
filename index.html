@@ -34,7 +34,7 @@
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning. Minor/Major stat mods included.</p>
+  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning. Minor/Major stat mods included per piece.</p>
 
   <div class="row">
     <div class="mode-toggle">
@@ -45,7 +45,6 @@
   </div>
 
   <div id="statsContainer" class="grid"></div>
-
   <div class="result"><p id="feasibility"></p></div>
   <div id="pieces" class="pieces"></div>
   <div class="footer small" id="notes"></div>
@@ -71,13 +70,13 @@
 
   function pieceDistribution(archetype, tertiary){
     const dist = statObj(0);
-    dist[archetype.primary]+=30;
-    dist[archetype.secondary]+=25;
-    dist[tertiary]+=20;
-    const values = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v);
-    for(let i=0;i<3;i++){ dist[values[i].s]+=5; } // Masterwork
-    if(mode==='balanced'){ const vals = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v); for(let i=0;i<3;i++){ dist[vals[i].s]+=1; } }
-    else{
+    dist[archetype.primary]=30;
+    dist[archetype.secondary]=25;
+    dist[tertiary]=20;
+    if(mode==='balanced'){
+      const vals = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v);
+      for(let i=0;i<3;i++){ dist[vals[i].s]+=1; }
+    } else {
       const tuned = archetype.primary;
       const candidates = STATS.filter(s=>s!==tuned).map(s=>({s,v:dist[s]})).sort((a,b)=>b.v-a.v);
       let donor = candidates[0].s;
@@ -89,7 +88,7 @@
   function computeCaps(){
     const baseCap = statObj( mode==='balanced' ? 150 : 175 );
     const maxWithMods = statObj(0);
-    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10*5; }); // Assume max 5 minor/major mods (+10 each)
+    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10*5; });
     document.getElementById('caps').textContent = `Per-stat cap including stat mods: ${maxWithMods[STATS[0]]}`;
     return maxWithMods;
   }
@@ -102,19 +101,19 @@
         const tertOptions = STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
         for(const t of tertOptions){
           const piece = pieceDistribution(arch,t);
+          STATS.forEach(s=>{ piece[s]=Math.min(piece[s], s===arch.primary?30:(s===arch.secondary?25:(s===t?20:0))); });
           let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=Math.min(piece[s],remaining[s]); } });
           const topDef = Object.entries(remaining).sort((a,b)=>b[1]-a[1])[0][0];
           if(arch.primary===topDef) score+=0.5;
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      // Apply stat mods if needed
       STATS.forEach(s=>{
         let over = remaining[s] - best.piece[s];
         if(over>0){
           let modsNeeded = Math.ceil(over/10);
-          best.piece[s] += modsNeeded*10;
-          best[`mods_${s}`] = modsNeeded;
+          best[`mod_assignment`] = best[`mod_assignment`] || [];
+          for(let m=0;m<modsNeeded;m++) best[`mod_assignment`].push({stat:s,value:Math.min(over,10)});
         }
       });
       chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
@@ -127,9 +126,9 @@
     STATS.forEach(stat=>{
       const card=document.createElement('div'); card.className='card';
       const label=document.createElement('label'); label.textContent=stat;
-      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=250; slider.step=5; slider.value=desired[stat];
+      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
       const val=document.createElement('div'); val.className='small'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
+      slider.addEventListener('input', e=>{ desired[stat]=Math.min(200, parseInt(e.target.value,10)); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
     });
   }
@@ -150,8 +149,8 @@
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
-        let modDisplay = c[`mods_${s}`]?` +${c[`mods_${s}`]*10} (stat mods)`:'';
-        row.innerHTML=`<span>${s}</span><span>${c.piece[s]}${modDisplay}</span>`; table.append(row); });
+        let modInfo = c.mod_assignment?.filter(m=>m.stat===s).map(m=>`+${m.value} ${m.stat}`).join(', ') || '+0';
+        row.innerHTML=`<span>${s}</span><span>${c.piece[s]} (${modInfo} stat mod)</span>`; table.append(row); });
       el.append(header,legend,table); piecesEl.append(el);
     });
   }

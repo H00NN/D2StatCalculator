@@ -34,7 +34,7 @@
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning.</p>
+  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning. Minor/Major stat mods included.</p>
 
   <div class="row">
     <div class="mode-toggle">
@@ -87,9 +87,11 @@
   }
 
   function computeCaps(){
-    const perStatMax = statObj( mode==='balanced' ? 150 : 175 );
-    document.getElementById('caps').textContent = `Per-stat cap (gear only, ${mode==='balanced'?'Balanced':'Tuning'}): ${perStatMax[STATS[0]]}`;
-    return perStatMax;
+    const baseCap = statObj( mode==='balanced' ? 150 : 175 );
+    const maxWithMods = statObj(0);
+    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10*5; }); // Assume max 5 minor/major mods (+10 each)
+    document.getElementById('caps').textContent = `Per-stat cap including stat mods: ${maxWithMods[STATS[0]]}`;
+    return maxWithMods;
   }
 
   function planPieces(target){
@@ -106,6 +108,15 @@
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
+      // Apply stat mods if needed
+      STATS.forEach(s=>{
+        let over = remaining[s] - best.piece[s];
+        if(over>0){
+          let modsNeeded = Math.ceil(over/10);
+          best.piece[s] += modsNeeded*10;
+          best[`mods_${s}`] = modsNeeded;
+        }
+      });
       chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
     }
     return {chosen, remaining};
@@ -116,7 +127,7 @@
     STATS.forEach(stat=>{
       const card=document.createElement('div'); card.className='card';
       const label=document.createElement('label'); label.textContent=stat;
-      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
+      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=250; slider.step=5; slider.value=desired[stat];
       const val=document.createElement('div'); val.className='small'; val.textContent=desired[stat];
       slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
@@ -127,17 +138,20 @@
     const caps=computeCaps();
     const over = STATS.filter(s=>desired[s]>caps[s]);
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Impossible with gear alone (${mode==='balanced'?'Balanced':'Tuning'}): ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
+    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with mods: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
-    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear-only plan leaves unmet deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }
-    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear alone.'; document.getElementById('notes').textContent=''; }
+    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }
+    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear and stat mods.'; document.getElementById('notes').textContent=''; }
     plan.chosen.forEach((c,idx)=>{
       const el=document.createElement('div'); el.className='piece';
       const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
       const legend=document.createElement('div'); legend.className='legend';
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
-      const table=document.createElement('div'); STATS.forEach(s=>{ const row=document.createElement('div'); row.className='statline'; row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`; table.append(row); });
+      const table=document.createElement('div'); STATS.forEach(s=>{ 
+        const row=document.createElement('div'); row.className='statline'; 
+        let modDisplay = c[`mods_${s}`]?` +${c[`mods_${s}`]*10} (stat mods)`:'';
+        row.innerHTML=`<span>${s}</span><span>${c.piece[s]}${modDisplay}</span>`; table.append(row); });
       el.append(header,legend,table); piecesEl.append(el);
     });
   }

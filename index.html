@@ -66,8 +66,6 @@
 
   const clone = o => JSON.parse(JSON.stringify(o));
   function statObj(fill=0){const o={}; STATS.forEach(s=>o[s]=fill); return o;}
-  function sub(a,b){const o={}; STATS.forEach(s=>o[s]=(a[s]||0)-(b[s]||0)); return o;}
-  function capFloor(o){const r={}; STATS.forEach(s=>{r[s]=Math.max(0, o[s]);}); return r;}
 
   function pieceDistribution(archetype, tertiary){
     const dist = statObj(0);
@@ -86,16 +84,17 @@
     return dist;
   }
 
-  function computeCaps(){
-    const baseCap = statObj( mode==='balanced' ? 150 : 175 );
-    const maxWithMods = statObj(0);
-    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+50; }); // max achievable with 1 mod per piece across 5 pieces
-    document.getElementById('caps').textContent = `Per-stat cap including all stat mods across pieces: ${maxWithMods[STATS[0]]}`;
-    return maxWithMods;
+  function computeMaxAllowable(desired){
+    const maxPerStat = statObj(200);
+    // compute remaining achievable per stat based on 5 pieces + max mod per piece
+    const pieceMax = statObj(0);
+    STATS.forEach(s=> pieceMax[s] = Math.min(30,200)); // simplified upper limit for primary
+    return maxPerStat;
   }
 
   function planPieces(target){
-    let remaining = clone(target); let chosen = [];
+    let remaining = clone(target); 
+    let chosen = [];
     for(let i=0;i<5;i++){
       let best=null, bestScore=-Infinity;
       for(const arch of ARCHETYPES){
@@ -103,16 +102,15 @@
         for(const t of tertOptions){
           const piece = pieceDistribution(arch,t);
           STATS.forEach(s=>{ piece[s]=Math.min(piece[s], s===arch.primary?30:(s===arch.secondary?25:(s===t?20:0))); });
-          let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=Math.min(piece[s]+10,remaining[s]); } });
-          const topDef = Object.entries(remaining).sort((a,b)=>b[1]-a[1])[0][0];
-          if(arch.primary===topDef) score+=0.5;
+          let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=piece[s]; } });
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      const mod_assignment = STATS.map(s=>{
-        const req = remaining[s]-best.piece[s];
-        return {stat:s, value: req>10?10:req>0?req:0};
-      });
+      // Assign one stat mod per piece to the stat with highest remaining deficit
+      const maxDeficitStat = STATS.reduce((a,b)=>remaining[a]>remaining[b]?a:b);
+      const modValue = Math.min(10, remaining[maxDeficitStat]-best.piece[maxDeficitStat], 10);
+      const mod_assignment = STATS.map(s=>({stat:s, value:0}));
+      if(modValue>0){ mod_assignment.find(m=>m.stat===maxDeficitStat).value = modValue; }
       best.mod_assignment = mod_assignment;
       chosen.push(best);
       STATS.forEach(s=>{
@@ -130,16 +128,25 @@
       const label=document.createElement('label'); label.textContent=stat;
       const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
       const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{ desired[stat]=Math.min(200, parseInt(e.target.value,10)); val.textContent=desired[stat]; recalc(); });
+      slider.addEventListener('input', e=>{
+        // check if desired combination is valid
+        desired[stat]=parseInt(e.target.value,10);
+        const plan = planPieces(desired);
+        STATS.forEach(s=>{
+          if(desired[s]>desired[s]-plan.remaining[s]){
+            desired[s]=Math.max(0,desired[s]-plan.remaining[s]);
+            slider.value=desired[s];
+          }
+        });
+        val.textContent=desired[stat];
+        recalc();
+      });
       card.append(label,slider,val); wrap.append(card);
     });
   }
 
   function recalc(){
-    const caps=computeCaps();
-    const over = STATS.filter(s=>desired[s]>caps[s]);
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with mods across pieces: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
     if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }

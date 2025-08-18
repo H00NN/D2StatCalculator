@@ -10,10 +10,6 @@
     body{background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,Apple Color Emoji,Segoe UI Emoji;margin:0;padding:24px}
     h1{font-size:1.75rem;margin:0 0 8px}
     p{color:var(--muted)}
-    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-    .mode-toggle button{padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
-    .active{background:var(--ok);color:#000}
-    .inactive{background:#30334e;color:#fff}
     .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
     .card{background:var(--card);border:1px solid #2b2e55;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
     label{font-weight:700;display:block;margin-bottom:8px}
@@ -29,21 +25,12 @@
     .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;align-items:center;margin-bottom:4px}
     .stat-mod{font-size:.8rem;color:var(--accent);margin-left:6px}
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
-    .toggle{margin-left:auto}
     .cap{font-size:.9rem;color:var(--muted)}
   </style>
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <p class="small">Armor 3.0 with Masterwork redistribution and optional Tuning. Minor/Major stat mods included per piece.</p>
-
-  <div class="row">
-    <div class="mode-toggle">
-      <button id="balancedBtn" class="active">Balanced Tuning</button>
-      <button id="tuningBtn" class="inactive">Stat Tuning</button>
-    </div>
-    <div class="toggle cap" id="caps"></div>
-  </div>
+  <p class="small">Armor 3.0 with Masterwork (+5 to three lowest stats), minor/major stat mods (+5/+10, 1 per piece), and automatic tuning (+1 balanced or +5/-5 stat tuning) applied as required.</p>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -53,70 +40,67 @@
 <script>
   const STATS = ["Super","Melee","Class","Grenade","Health","Weapons"];
   const ARCHETYPES = [
-    {key:"Paragon", primary:"Super",   secondary:"Melee"},
+    {key:"Paragon", primary:"Super", secondary:"Melee"},
     {key:"Grenadier", primary:"Grenade", secondary:"Super"},
-    {key:"Specialist", primary:"Class",  secondary:"Weapons"},
-    {key:"Brawler",  primary:"Melee",   secondary:"Health"},
-    {key:"Bulwark",  primary:"Health",  secondary:"Class"},
-    {key:"Gunner",   primary:"Weapons", secondary:"Grenade"},
+    {key:"Specialist", primary:"Class", secondary:"Weapons"},
+    {key:"Brawler", primary:"Melee", secondary:"Health"},
+    {key:"Bulwark", primary:"Health", secondary:"Class"},
+    {key:"Gunner", primary:"Weapons", secondary:"Grenade"}
   ];
 
   let desired = Object.fromEntries(STATS.map(s=>[s,0]));
-  let mode = 'balanced';
 
-  const clone = o => JSON.parse(JSON.stringify(o));
   function statObj(fill=0){const o={}; STATS.forEach(s=>o[s]=fill); return o;}
+  const clone = o => JSON.parse(JSON.stringify(o));
 
   function pieceDistribution(archetype, tertiary){
     const dist = statObj(0);
     dist[archetype.primary]=30;
     dist[archetype.secondary]=25;
     dist[tertiary]=20;
-    if(mode==='balanced'){
-      const vals = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v);
-      for(let i=0;i<3;i++){ dist[vals[i].s]+=1; }
-    } else {
-      const tuned = archetype.primary;
-      const candidates = STATS.filter(s=>s!==tuned).map(s=>({s,v:dist[s]})).sort((a,b)=>b.v-a.v);
-      let donor = candidates[0].s;
-      dist[tuned]+=5; dist[donor]-=5;
-    }
+
+    // Masterwork adds +5 to unused stats
+    STATS.forEach(s=>{ if(s!==archetype.primary && s!==archetype.secondary && s!==tertiary) dist[s]+=5; });
     return dist;
   }
 
-  function computeMaxAllowable(desired){
-    const maxPerStat = statObj(200);
-    // compute remaining achievable per stat based on 5 pieces + max mod per piece
-    const pieceMax = statObj(0);
-    STATS.forEach(s=> pieceMax[s] = Math.min(30,200)); // simplified upper limit for primary
-    return maxPerStat;
+  function applyTuning(remaining, piece){
+    // If deficit exists, apply +1 balanced tuning to three lowest stats
+    let deficits = STATS.map(s=>remaining[s]-piece[s]).filter(d=>d>0);
+    if(deficits.length){
+      let sortedStats = STATS.map(s=>({s,val:piece[s]})).sort((a,b)=>a.val-b.val).slice(0,3);
+      sortedStats.forEach(sobj=>{ piece[sobj.s]+=1; });
+    }
+    return piece;
   }
 
   function planPieces(target){
-    let remaining = clone(target); 
-    let chosen = [];
+    let remaining = clone(target);
+    let chosen=[];
+
     for(let i=0;i<5;i++){
       let best=null, bestScore=-Infinity;
       for(const arch of ARCHETYPES){
         const tertOptions = STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
         for(const t of tertOptions){
-          const piece = pieceDistribution(arch,t);
-          STATS.forEach(s=>{ piece[s]=Math.min(piece[s], s===arch.primary?30:(s===arch.secondary?25:(s===t?20:0))); });
-          let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=piece[s]; } });
+          let piece = pieceDistribution(arch,t);
+          piece = applyTuning(remaining, piece);
+          let score=0; STATS.forEach(s=>{ score+=Math.min(piece[s], remaining[s]); });
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      // Assign one stat mod per piece to the stat with highest remaining deficit
-      const maxDeficitStat = STATS.reduce((a,b)=>remaining[a]>remaining[b]?a:b);
-      const modValue = Math.min(10, remaining[maxDeficitStat]-best.piece[maxDeficitStat], 10);
-      const mod_assignment = STATS.map(s=>({stat:s, value:0}));
-      if(modValue>0){ mod_assignment.find(m=>m.stat===maxDeficitStat).value = modValue; }
+
+      // Assign 1 stat mod per piece to highest remaining deficit stat, max 10
+      let mod_assignment = STATS.map(s=>({stat:s,value:0}));
+      let deficits = STATS.map(s=>({s,val:remaining[s]-best.piece[s]})).filter(d=>d>0);
+      if(deficits.length){
+        let top = deficits.reduce((a,b)=>a.val>b.val?a:b);
+        mod_assignment.find(m=>m.stat===top.s).value = Math.min(10, top.val);
+      }
       best.mod_assignment = mod_assignment;
+
       chosen.push(best);
-      STATS.forEach(s=>{
-        remaining[s]-= (best.piece[s] + best.mod_assignment.find(m=>m.stat===s).value);
-        if(remaining[s]<0) remaining[s]=0;
-      });
+      STATS.forEach(s=>{ remaining[s]-=(best.piece[s]+best.mod_assignment.find(m=>m.stat===s).value); if(remaining[s]<0) remaining[s]=0; });
     }
     return {chosen, remaining};
   }
@@ -128,19 +112,7 @@
       const label=document.createElement('label'); label.textContent=stat;
       const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
       const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{
-        // check if desired combination is valid
-        desired[stat]=parseInt(e.target.value,10);
-        const plan = planPieces(desired);
-        STATS.forEach(s=>{
-          if(desired[s]>desired[s]-plan.remaining[s]){
-            desired[s]=Math.max(0,desired[s]-plan.remaining[s]);
-            slider.value=desired[s];
-          }
-        });
-        val.textContent=desired[stat];
-        recalc();
-      });
+      slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
     });
   }
@@ -149,13 +121,14 @@
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
-    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }
-    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear and single stat mod per piece.'; document.getElementById('notes').textContent=''; }
+    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust desired stats.'; }
+    else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear, masterwork, tuning, and 1 stat mod per piece.'; document.getElementById('notes').textContent=''; }
+
     plan.chosen.forEach((c,idx)=>{
       const el=document.createElement('div'); el.className='piece';
       const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
       const legend=document.createElement('div'); legend.className='legend';
-      legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
+      legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span>`;
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
         const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
@@ -165,9 +138,6 @@
       el.append(header,legend,table); piecesEl.appendChild(el);
     });
   }
-
-  document.getElementById('balancedBtn').addEventListener('click',()=>{ mode='balanced'; balancedBtn.className='active'; tuningBtn.className='inactive'; recalc(); });
-  document.getElementById('tuningBtn').addEventListener('click',()=>{ mode='tuning'; tuningBtn.className='active'; balancedBtn.className='inactive'; recalc(); });
 
   renderSliders(); recalc();
 </script>

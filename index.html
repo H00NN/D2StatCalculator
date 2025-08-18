@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Destiny 2 Build Creator — Inspired by D2ArmorPicker</title>
+<title>Destiny 2 Build Creator — Armor 6.0</title>
 <style>
   body{background:#0f1020;color:#fff;font-family:ui-sans-serif,system-ui;margin:0;padding:24px;}
   h1{font-size:1.75rem;margin-bottom:16px}
@@ -17,12 +17,11 @@
   .piece h3{margin:0 0 6px;font-size:1rem}
   .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
   .statline{display:flex;justify-content:space-between;margin-bottom:4px}
-  .stat-mod{font-size:.8rem;color:#60a5fa;margin-left:6px}
 </style>
 </head>
 <body>
-<h1>Destiny 2 Build Creator — Armor 5.0</h1>
-<div class="version" id="versionIndicator">v0.50</div>
+<h1>Destiny 2 Build Creator — Armor 6.0</h1>
+<div class="version" id="versionIndicator">v0.60</div>
 <div id="statsContainer" class="grid"></div>
 <div id="pieces" class="pieces"></div>
 <script>
@@ -49,50 +48,68 @@ function pieceDistribution(arch,tertiary){
 
 function planPieces(target){
   let remaining=Object.fromEntries(STATS.map(s=>[s,target[s]])),chosen=[];
+
   for(let i=0;i<5;i++){
     let best=null,bestScore=-Infinity;
     for(const arch of ARCHETYPES){
       const tertOptions=STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
       for(const t of tertOptions){
         const piece=pieceDistribution(arch,t);
-        let score=0;STATS.forEach(s=>score+=Math.min(piece[s],remaining[s]));
+        let score=0; STATS.forEach(s=>score+=Math.min(piece[s],remaining[s]));
         if(score>bestScore) bestScore=score,best={arch,tertiary:t,piece};
       }
     }
 
     let modAssignment=STATS.map(s=>({stat:s,value:0,regular:false,tuning:false}));
-    let regularUsed=false,tuningUsed=false;
+    let usedRegular=false,usedTuning=false;
+
+    // Assign one +10 stat mod per piece if still needed
     STATS.forEach(s=>{
-      if(!regularUsed && remaining[s]-best.piece[s]>=10){
-        const m=modAssignment.find(m=>m.stat===s); m.value+=10; m.regular=true; remaining[s]-=10; regularUsed=true;
+      if(!usedRegular && remaining[s]-best.piece[s]>=10){
+        const m=modAssignment.find(m=>m.stat===s); m.value+=10; m.regular=true; remaining[s]-=10; usedRegular=true;
       }
     });
+
+    // Assign one +5 tuning mod per piece if still needed
     STATS.forEach(s=>{
-      if(!tuningUsed && remaining[s]-best.piece[s]>=5){
-        const m=modAssignment.find(m=>m.stat===s); m.value+=5; m.tuning=true; remaining[s]-=5; tuningUsed=true;
+      if(!usedTuning && remaining[s]-best.piece[s]>=5){
+        const m=modAssignment.find(m=>m.stat===s); m.value+=5; m.tuning=true; remaining[s]-=5; usedTuning=true;
       }
     });
-    STATS.forEach(s=>{if(remaining[s]<0) remaining[s]=0});
+
     chosen.push({...best,modAssignment});
   }
+
+  // Clamp sliders and desired values to achievable totals
+  STATS.forEach(s=>{
+    let total=0;
+    chosen.forEach(p=>total+=p.piece[s]+(p.modAssignment.find(m=>m.stat===s)?.value||0));
+    if(total>200) desired[s]=200;
+  });
+
   return chosen;
 }
 
 function recalc(){
   const piecesEl=document.getElementById('pieces'); piecesEl.innerHTML='';
   const plan=planPieces(desired);
+
   plan.forEach((c,idx)=>{
     const el=document.createElement('div'); el.className='piece';
     el.innerHTML=`<h3>Piece ${idx+1}: ${c.arch.key}</h3>`;
     const legend=document.createElement('div'); legend.className='pill';
     legend.textContent=`Primary: ${c.arch.primary} +30 | Secondary: ${c.arch.secondary} +25 | Tertiary: ${c.tertiary} +20`;
     el.appendChild(legend);
+
     STATS.forEach(s=>{
       const row=document.createElement('div'); row.className='statline';
       const mod=c.modAssignment.find(m=>m.stat===s && m.value>0);
       let modText='';
-      if(mod){if(mod.regular) modText+='Equip +10 Mod'; if(mod.tuning) modText+=(modText?' & ':'')+'Stat Tuning +5';}
-      row.textContent=`${s}: ${c.piece[s]}${modText?` (${modText})`:''}`;
+      if(mod){
+        if(mod.regular) modText+=' +10 Stat Mod';
+        if(mod.tuning) modText+=(modText?' & ':'')+' +5 Tuning Mod';
+      }
+      row.textContent=`${s}: ${c.piece[s]}${modText}`;
       el.appendChild(row);
     });
     piecesEl.appendChild(el);
@@ -108,7 +125,9 @@ function renderSliders(){
     const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
     slider.addEventListener('input', e=>{
       let valInt=parseInt(e.target.value,10);
-      desired[stat]=Math.min(valInt,200);
+      // Clamp slider to achievable maximum per stat
+      valInt=Math.min(valInt,200);
+      desired[stat]=valInt;
       val.textContent=desired[stat];
       recalc();
     });

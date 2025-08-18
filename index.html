@@ -3,151 +3,228 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Destiny 2 Build Creator</title>
+  <title>Destiny 2 Build Creator (Armor 3.0)</title>
   <style>
-    body {
-      background: #0f0f1a;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
+    :root{
+      --bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa
     }
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-    }
-    .mode-toggle button {
-      padding: 8px 16px;
-      margin-right: 10px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-weight: bold;
-    }
-    .active {
-      background: #4ade80;
-      color: #000;
-    }
-    .inactive {
-      background: #333;
-      color: #fff;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 16px;
-      margin-top: 20px;
-    }
-    .card {
-      background: #1e1e2f;
-      border-radius: 10px;
-      padding: 16px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-    }
-    label {
-      font-weight: bold;
-      display: block;
-      margin-bottom: 8px;
-    }
-    input[type=range] {
-      width: 100%;
-    }
-    .result {
-      margin-top: 20px;
-      font-size: 1.1rem;
-    }
-    .ok { color: #4ade80; }
-    .error { color: #f87171; }
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:#fff;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,Apple Color Emoji,Segoe UI Emoji;margin:0;padding:24px}
+    h1{font-size:1.75rem;margin:0 0 8px}
+    p{color:var(--muted)}
+    .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+    .mode-toggle button{padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+    .active{background:var(--ok);color:#000}
+    .inactive{background:#30334e;color:#fff}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+    .card{background:var(--card);border:1px solid #2b2e55;border-radius:12px;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+    label{font-weight:700;display:block;margin-bottom:8px}
+    input[type=range]{width:100%}
+    .result{margin-top:16px;font-size:1.05rem}
+    .ok{color:var(--ok)}.error{color:var(--bad)}
+    .pieces{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
+    .piece{background:#1f2140;border:1px solid #2e315e;border-radius:10px;padding:12px}
+    .piece h3{margin:0 0 6px;font-size:1rem}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
+    .small{font-size:.85rem;color:var(--muted)}
+    .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+    .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums}
+    .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
+    .toggle{margin-left:auto}
+    .cap{font-size:.9rem;color:var(--muted)}
   </style>
 </head>
 <body>
-  <h1>Destiny 2 Build Creator</h1>
+  <h1>Destiny 2 Build Creator — Armor 3.0</h1>
+  <p class="small">Uses official Armor 3.0 archetypes (30/25 primary/secondary + 20 tertiary per Tier 5 piece; Masterwork redistributes +15; optional Tuning vs Balanced).</p>
 
-  <div class="mode-toggle">
-    <button id="balancedBtn" class="active">Balanced Tuning</button>
-    <button id="tuningBtn" class="inactive">Stat Tuning Mods</button>
+  <div class="row">
+    <div class="mode-toggle">
+      <button id="balancedBtn" class="active">Balanced Tuning</button>
+      <button id="tuningBtn" class="inactive">Stat Tuning Mods</button>
+    </div>
+    <div class="toggle cap" id="caps"></div>
   </div>
 
   <div id="statsContainer" class="grid"></div>
 
-  <div class="result">
-    <p id="totalDisplay"></p>
-    <p id="feasibility"></p>
-  </div>
+  <div class="result"><p id="feasibility"></p></div>
+
+  <div id="pieces" class="pieces"></div>
+
+  <div class="footer small" id="notes"></div>
 
 <script>
-  const STATS = ["Super", "Melee", "Class", "Grenade", "Health", "Weapons"];
-  let desiredStats = Object.fromEntries(STATS.map(s => [s, 0]));
-  let mode = "balanced";
+  // === Official Armor 3.0 stats ===
+  const STATS = ["Super","Melee","Class","Grenade","Health","Weapons"];
 
-  const statsContainer = document.getElementById("statsContainer");
-  const totalDisplay = document.getElementById("totalDisplay");
-  const feasibility = document.getElementById("feasibility");
-  const balancedBtn = document.getElementById("balancedBtn");
-  const tuningBtn = document.getElementById("tuningBtn");
+  // Official archetypes per TWID 2025-06-26
+  const ARCHETYPES = [
+    {key:"Paragon", primary:"Super",   secondary:"Melee"},
+    {key:"Grenadier", primary:"Grenade", secondary:"Super"},
+    {key:"Specialist", primary:"Class",  secondary:"Weapons"},
+    {key:"Brawler",  primary:"Melee",   secondary:"Health"},
+    {key:"Bulwark",  primary:"Health",  secondary:"Class"},
+    {key:"Gunner",   primary:"Weapons", secondary:"Grenade"},
+  ];
 
-  function renderSliders() {
-    statsContainer.innerHTML = "";
-    STATS.forEach(stat => {
-      const card = document.createElement("div");
-      card.className = "card";
+  // UI model
+  let desired = Object.fromEntries(STATS.map(s=>[s,0]));
+  let mode = 'balanced'; // 'balanced' or 'tuning'
 
-      const label = document.createElement("label");
-      label.innerText = stat;
+  // --- Helpers ---
+  const clone = o => JSON.parse(JSON.stringify(o));
 
-      const slider = document.createElement("input");
-      slider.type = "range";
-      slider.min = 0;
-      slider.max = 200;
-      slider.step = 5;
-      slider.value = desiredStats[stat];
-      slider.addEventListener("input", e => {
-        desiredStats[stat] = parseInt(e.target.value);
-        updateTotals();
-        valueDisplay.innerText = desiredStats[stat];
-      });
+  function statObj(fill=0){const o={}; STATS.forEach(s=>o[s]=fill); return o;}
 
-      const valueDisplay = document.createElement("div");
-      valueDisplay.style.marginTop = "6px";
-      valueDisplay.innerText = desiredStats[stat];
+  function add(a,b){const o={}; STATS.forEach(s=>o[s]=(a[s]||0)+(b[s]||0)); return o;}
+  function sub(a,b){const o={}; STATS.forEach(s=>o[s]=(a[s]||0)-(b[s]||0)); return o;}
+  function capFloor(o){const r={}; STATS.forEach(s=>{r[s]=Math.max(0, o[s]);}); return r;}
+  function sum(o){return STATS.reduce((t,s)=>t+o[s],0)}
 
-      card.appendChild(label);
-      card.appendChild(slider);
-      card.appendChild(valueDisplay);
-      statsContainer.appendChild(card);
+  // Build a single Tier 5 piece distribution for a given archetype + chosen tertiary.
+  function pieceDistribution(archetype, tertiary){
+    const dist = statObj(0);
+    dist[archetype.primary]+=30;
+    dist[archetype.secondary]+=25;
+    dist[tertiary]+=20;
+
+    // Masterwork: +5 to the three lowest stats on that piece
+    // At this point, the 3 lowest are the three zeroes.
+    const values = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v);
+    for(let i=0;i<3;i++){ dist[values[i].s]+=5; }
+
+    if(mode==='balanced'){
+      // Balanced: +1 to the three lowest stats on the piece
+      const vals = STATS.map(s=>({s,v:dist[s]})).sort((a,b)=>a.v-b.v);
+      for(let i=0;i<3;i++){ dist[vals[i].s]+=1; }
+    } else {
+      // Tuning: +5 to tuned stat, -5 from a donor stat (pick donor as current highest other stat)
+      // For planning, tune to the archetype's PRIMARY (most common use-case)
+      const tuned = archetype.primary;
+      // pick donor among other stats with max value that isn't tuned and remains >=5 after removal
+      const candidates = STATS.filter(s=>s!==tuned).map(s=>({s,v:dist[s]})).sort((a,b)=>b.v-a.v);
+      let donor = candidates[0].s;
+      // Ensure we don't go below 0; all non-zero are >=5 here, so subtracting 5 is safe.
+      dist[tuned]+=5;
+      dist[donor]-=5;
+      dist.__tuned = tuned; // annotate for UI
+      dist.__donor = donor;
+    }
+    return dist; // totals: 90 (tuning keeps 90), 93 (balanced)
+  }
+
+  // Compute theoretical per-stat caps from 5 pieces (no mods/fragments/fonts)
+  function computeCaps(){
+    // Balanced: max for a stat is 5 pieces with that stat as PRIMARY -> 150
+    // Tuning: same plus +5 each if all tuned to that stat -> 175
+    const perStatMax = statObj( mode==='balanced' ? 150 : 175 );
+    document.getElementById('caps').textContent = `Per-stat cap (gear only, ${mode==='balanced'?'Balanced':'Tuning'}): ${perStatMax[STATS[0]]}`;
+    return perStatMax;
+  }
+
+  // Greedy planner: pick 5 pieces that best reduce remaining deficit; choose tertiary each time.
+  function planPieces(target){
+    let remaining = clone(target);
+    let chosen = [];
+    for(let i=0;i<5;i++){
+      let best=null, bestScore=-Infinity;
+      for(const arch of ARCHETYPES){
+        // tertiary cannot be primary or secondary
+        const tertOptions = STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
+        for(const t of tertOptions){
+          const piece = pieceDistribution(arch,t);
+          // score = how much this piece covers current positive deficits
+          let score = 0;
+          STATS.forEach(s=>{ if(remaining[s]>0){ score += Math.min(piece[s], remaining[s]); } });
+          // slight preference for aligning primary with the largest deficit
+          const topDef = Object.entries(remaining).sort((a,b)=>b[1]-a[1])[0][0];
+          if(arch.primary===topDef) score += 0.5; // tie-breaker
+          if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
+        }
+      }
+      chosen.push(best);
+      // reduce remaining
+      remaining = capFloor(sub(remaining, best.piece));
+    }
+    return {chosen, remaining};
+  }
+
+  // Render sliders
+  function renderSliders(){
+    const wrap = document.getElementById('statsContainer');
+    wrap.innerHTML='';
+    STATS.forEach(stat=>{
+      const card=document.createElement('div');card.className='card';
+      const label=document.createElement('label');label.textContent=stat;
+      const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=200;slider.step=5;slider.value=desired[stat];
+      const val=document.createElement('div');val.className='small';val.textContent=desired[stat];
+      slider.addEventListener('input',e=>{desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc();});
+      card.append(label,slider,val); wrap.append(card);
     });
   }
 
-  function updateTotals() {
-    const MAX_POINTS = mode === "balanced" ? 103 * 5 : 100 * 5;
-    const totalDesired = Object.values(desiredStats).reduce((a,b) => a+b, 0);
+  function recalc(){
+    const caps = computeCaps();
+    // Quick impossibility check against per-stat max (gear only)
+    const over = STATS.filter(s=>desired[s]>caps[s]);
 
-    totalDisplay.innerText = `Total Desired: ${totalDesired} / ${MAX_POINTS}`;
-    if(totalDesired > MAX_POINTS){
-      feasibility.innerText = "❌ Impossible build – exceeds maximum stat budget.";
-      feasibility.className = "error";
-    } else {
-      feasibility.innerText = "✅ Build is within limits. Archetype suggestion logic coming here.";
-      feasibility.className = "ok";
+    const piecesEl = document.getElementById('pieces');
+    piecesEl.innerHTML='';
+
+    if(over.length){
+      document.getElementById('feasibility').className='error';
+      document.getElementById('feasibility').textContent = `❌ Impossible with gear alone (${mode==='balanced'?'Balanced':'Tuning'}): ${over.join(', ')} exceed per-stat cap.`;
+      document.getElementById('notes').textContent = 'Tip: Lower those stats or plan to add Fragments/Stat Mods/Font mods (not included yet).';
+      return;
     }
+
+    const plan = planPieces(desired);
+    const still = plan.remaining;
+    const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
+
+    if(unmet.length){
+      document.getElementById('feasibility').className='error';
+      document.getElementById('feasibility').textContent = `⚠️ Gear-only plan leaves unmet deficits: ` + unmet.map(s=>`${s} ${still[s]}`).join(', ');
+      document.getElementById('notes').textContent = 'Add Fragments / Stat Mods / Font mods to finish (coming soon).';
+    } else {
+      document.getElementById('feasibility').className='ok';
+      document.getElementById('feasibility').textContent = '✅ Achievable with gear alone. Suggested archetype mix below.';
+      document.getElementById('notes').textContent = '';
+    }
+
+    // Render chosen pieces
+    plan.chosen.forEach((c,idx)=>{
+      const el=document.createElement('div'); el.className='piece';
+      const header=document.createElement('h3'); header.textContent=`Piece ${idx+1}: ${c.arch.key}`;
+      const legend=document.createElement('div'); legend.className='legend';
+      legend.innerHTML = `
+        <span class="pill">Primary: ${c.arch.primary} +30</span>
+        <span class="pill">Secondary: ${c.arch.secondary} +25</span>
+        <span class="pill">Tertiary: ${c.tertiary} +20</span>
+        <span class="pill">Masterwork: +15 redistributed</span>
+        <span class="pill">${mode==='balanced'?'Balanced: +1×3 lowest':'Tuned: +5 '+(c.piece.__tuned||c.arch.primary)+' / -5 '+(c.piece.__donor||'other')}</span>`;
+
+      const table=document.createElement('div');
+      STATS.forEach(s=>{
+        const row=document.createElement('div'); row.className='statline';
+        row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`;
+        table.append(row);
+      });
+
+      el.append(header,legend,table);
+      pieces.append(el);
+    });
   }
 
-  balancedBtn.addEventListener("click", () => {
-    mode = "balanced";
-    balancedBtn.className = "active";
-    tuningBtn.className = "inactive";
-    updateTotals();
-  });
+  // Mode buttons
+  document.getElementById('balancedBtn').addEventListener('click',()=>{ mode='balanced'; balancedBtn.className='active'; tuningBtn.className='inactive'; recalc(); });
+  document.getElementById('tuningBtn').addEventListener('click',()=>{ mode='tuning'; tuningBtn.className='active'; balancedBtn.className='inactive'; recalc(); });
 
-  tuningBtn.addEventListener("click", () => {
-    mode = "tuning";
-    tuningBtn.className = "active";
-    balancedBtn.className = "inactive";
-    updateTotals();
-  });
-
+  // Init
   renderSliders();
-  updateTotals();
+  recalc();
 </script>
 </body>
+</html>
 </html>

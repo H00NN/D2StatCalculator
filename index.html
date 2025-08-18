@@ -27,7 +27,7 @@
     .small{font-size:.85rem;color:var(--muted)}
     .legend{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
     .statline{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;flex-direction:column;gap:2px}
-    .stat-mod{font-size:.8rem;color:var(--accent)}
+    .stat-mod{font-size:.8rem;color:var(--accent);margin-left:6px}
     .footer{margin-top:22px;color:var(--muted);font-size:.9rem}
     .toggle{margin-left:auto}
     .cap{font-size:.9rem;color:var(--muted)}
@@ -89,7 +89,7 @@
   function computeCaps(){
     const baseCap = statObj( mode==='balanced' ? 150 : 175 );
     const maxWithMods = statObj(0);
-    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10; }); // single mod per piece
+    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10; });
     document.getElementById('caps').textContent = `Per-stat cap including single stat mod per piece: ${maxWithMods[STATS[0]]}`;
     return maxWithMods;
   }
@@ -109,17 +109,10 @@
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      // Assign a single stat mod per piece
-      best.mod_assignment = STATS.map(s=>{
-        let needed = remaining[s]-best.piece[s];
-        if(needed>0){
-          return {stat:s,value:Math.min(needed,10)};
-        } return {stat:s,value:0};
-      });
-      // Only one mod per piece: pick the stat with highest needed
-      best.mod_assignment.sort((a,b)=>b.value-a.value);
-      best.mod_assignment = best.mod_assignment.map((m,i)=> i===0 ? m : {stat:m.stat,value:0});
-
+      // Assign a single stat mod per piece for the stat that needs most
+      const neededStats = STATS.map(s=>remaining[s]-best.piece[s]).map((v,i)=>({stat:STATS[i],value:Math.max(0,v)}));
+      neededStats.sort((a,b)=>b.value-a.value);
+      best.mod_assignment = neededStats.map((m,i)=>i===0?{stat:m.stat,value:Math.min(m.value,10)}:{stat:m.stat,value:0});
       chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
     }
     return {chosen, remaining};
@@ -155,10 +148,13 @@
         const row=document.createElement('div'); row.className='statline'; 
         row.innerHTML=`<span>${s}</span><span>${c.piece[s]}</span>`;
         const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
-        if(mod){ const modRow=document.createElement('div'); modRow.className='stat-mod'; modRow.textContent=`Stat Mod: +${mod.value} ${mod.stat}`; row.append(modRow); }
-        table.append(row);
+        if(mod){
+          const modRow=document.createElement('div'); modRow.className='stat-mod'; modRow.textContent=`Stat Mod: +${mod.value} ${mod.stat}`;
+          row.appendChild(modRow);
+        }
+        table.appendChild(row);
       });
-      el.append(header,legend,table); piecesEl.append(el);
+      el.append(header,legend,table); piecesEl.appendChild(el);
     });
   }
 

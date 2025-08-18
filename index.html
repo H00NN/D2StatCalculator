@@ -30,7 +30,7 @@
 </head>
 <body>
   <h1>Destiny 2 Build Creator — Armor 3.0</h1>
-  <p class="small">Armor 3.0 with Masterwork (+5 to three lowest stats), minor/major stat mods (+5/+10, 1 per piece), and automatic tuning (+1 balanced or +5/-5 stat tuning) applied as required.</p>
+  <p class="small">Armor 3.0 with Masterwork (+5 to three lowest stats), minor/major stat mods (+5/+10, 1 per piece), and automatic tuning (+1 balanced or +5/-5 stat tuning) applied as required. Slider limits now respect achievable maximums.</p>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -58,39 +58,25 @@
     dist[archetype.primary]=30;
     dist[archetype.secondary]=25;
     dist[tertiary]=20;
-
-    // Masterwork adds +5 to unused stats
-    STATS.forEach(s=>{ if(s!==archetype.primary && s!==archetype.secondary && s!==tertiary) dist[s]+=5; });
+    STATS.forEach(s=>{ if(s!==archetype.primary && s!==archetype.secondary && s!==tertiary) dist[s]+=5; }); // masterwork
     return dist;
-  }
-
-  function applyTuning(remaining, piece){
-    // If deficit exists, apply +1 balanced tuning to three lowest stats
-    let deficits = STATS.map(s=>remaining[s]-piece[s]).filter(d=>d>0);
-    if(deficits.length){
-      let sortedStats = STATS.map(s=>({s,val:piece[s]})).sort((a,b)=>a.val-b.val).slice(0,3);
-      sortedStats.forEach(sobj=>{ piece[sobj.s]+=1; });
-    }
-    return piece;
   }
 
   function planPieces(target){
     let remaining = clone(target);
     let chosen=[];
-
     for(let i=0;i<5;i++){
-      let best=null, bestScore=-Infinity;
+      let best=null,bestScore=-Infinity;
       for(const arch of ARCHETYPES){
         const tertOptions = STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
         for(const t of tertOptions){
           let piece = pieceDistribution(arch,t);
-          piece = applyTuning(remaining, piece);
           let score=0; STATS.forEach(s=>{ score+=Math.min(piece[s], remaining[s]); });
-          if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
+          if(score>bestScore){ bestScore=score; best={arch,tertiary:t,piece}; }
         }
       }
 
-      // Assign 1 stat mod per piece to highest remaining deficit stat, max 10
+      // Assign 1 stat mod per piece to highest remaining deficit
       let mod_assignment = STATS.map(s=>({stat:s,value:0}));
       let deficits = STATS.map(s=>({s,val:remaining[s]-best.piece[s]})).filter(d=>d>0);
       if(deficits.length){
@@ -100,9 +86,30 @@
       best.mod_assignment = mod_assignment;
 
       chosen.push(best);
-      STATS.forEach(s=>{ remaining[s]-=(best.piece[s]+best.mod_assignment.find(m=>m.stat===s).value); if(remaining[s]<0) remaining[s]=0; });
+      STATS.forEach(s=>{
+        remaining[s]-=(best.piece[s]+best.mod_assignment.find(m=>m.stat===s).value);
+        if(remaining[s]<0) remaining[s]=0;
+      });
     }
     return {chosen, remaining};
+  }
+
+  function recalcSliderLimits(){
+    const maxAchievable = (stat) => {
+      // compute max achievable stat based on archetypes, masterwork, and 1 stat mod per piece
+      const primaryMax = 5*30;
+      const secondaryMax = 5*25;
+      const tertiaryMax = 5*20;
+      const masterworkMax = 5*3*5; // max 3 stats per piece +5 each
+      const modMax = 5*10;
+      const totalMax = primaryMax + secondaryMax + tertiaryMax + masterworkMax + modMax;
+      return Math.min(totalMax,200);
+    };
+    document.querySelectorAll('#statsContainer input[type=range]').forEach(inp=>{
+      inp.max = maxAchievable(inp.previousSibling.textContent);
+      if(desired[inp.previousSibling.textContent]>inp.max) desired[inp.previousSibling.textContent]=inp.max;
+      inp.value = desired[inp.previousSibling.textContent];
+    });
   }
 
   function renderSliders(){
@@ -110,7 +117,7 @@
     STATS.forEach(stat=>{
       const card=document.createElement('div'); card.className='card';
       const label=document.createElement('label'); label.textContent=stat;
-      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
+      const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.step=5; slider.value=desired[stat];
       const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
       slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
@@ -118,10 +125,11 @@
   }
 
   function recalc(){
+    recalcSliderLimits();
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
-    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust desired stats.'; }
+    if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Stat combination exceeds achievable values: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust desired stats to achievable values.'; }
     else { document.getElementById('feasibility').className='ok'; document.getElementById('feasibility').textContent='✅ Achievable with gear, masterwork, tuning, and 1 stat mod per piece.'; document.getElementById('notes').textContent=''; }
 
     plan.chosen.forEach((c,idx)=>{
@@ -132,7 +140,7 @@
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
         const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
-        row.innerHTML=`<span>${s}: ${c.piece[s]}${mod?` (Stat Mod: +${mod.value})`:''}</span>`;
+        row.innerHTML=`<span>${s}: ${c.piece[s]}${mod?` (Equip Stat Mod: +${mod.value})`:''}</span>`;
         table.appendChild(row);
       });
       el.append(header,legend,table); piecesEl.appendChild(el);

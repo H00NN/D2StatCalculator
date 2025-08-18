@@ -108,13 +108,13 @@
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      STATS.forEach(s=>{
-        let over = remaining[s] - best.piece[s];
+      // Calculate mods per stat without compounding duplicates
+      best.mod_assignment = STATS.map(s=>{
+        let over = remaining[s]-best.piece[s];
         if(over>0){
-          let modsNeeded = Math.ceil(over/10);
-          best[`mod_assignment`] = best[`mod_assignment`] || [];
-          for(let m=0;m<modsNeeded;m++) best[`mod_assignment`].push({stat:s,value:Math.min(over,10)});
-        }
+          const modValue = Math.min(over,10);
+          return {stat:s,value:modValue};
+        } else return {stat:s,value:0};
       });
       chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
     }
@@ -149,8 +149,8 @@
       legend.innerHTML=`<span class="pill">Primary: ${c.arch.primary} +30</span><span class="pill">Secondary: ${c.arch.secondary} +25</span><span class="pill">Tertiary: ${c.tertiary} +20</span><span class="pill">Masterwork+15</span>`;
       const table=document.createElement('div'); STATS.forEach(s=>{ 
         const row=document.createElement('div'); row.className='statline'; 
-        let modInfo = c.mod_assignment?.filter(m=>m.stat===s).map(m=>`+${m.value} ${m.stat}`).join(', ') || '+0';
-        row.innerHTML=`<span>${s}</span><span>${c.piece[s]} (${modInfo} stat mod)</span>`; table.append(row); });
+        let modInfo = c.mod_assignment.find(m=>m.stat===s)?.value || 0;
+        row.innerHTML=`<span>${s}</span><span>${c.piece[s]} (${modInfo>0 ? '+'+modInfo+' stat mod' : '+0'})</span>`; table.append(row); });
       el.append(header,legend,table); piecesEl.append(el);
     });
   }

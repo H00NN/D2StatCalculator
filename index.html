@@ -89,8 +89,8 @@
   function computeCaps(){
     const baseCap = statObj( mode==='balanced' ? 150 : 175 );
     const maxWithMods = statObj(0);
-    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+10; });
-    document.getElementById('caps').textContent = `Per-stat cap including single stat mod per piece: ${maxWithMods[STATS[0]]}`;
+    STATS.forEach(s=>{ maxWithMods[s]=baseCap[s]+50; }); // max achievable with 1 mod per piece across 5 pieces
+    document.getElementById('caps').textContent = `Per-stat cap including all stat mods across pieces: ${maxWithMods[STATS[0]]}`;
     return maxWithMods;
   }
 
@@ -103,16 +103,22 @@
         for(const t of tertOptions){
           const piece = pieceDistribution(arch,t);
           STATS.forEach(s=>{ piece[s]=Math.min(piece[s], s===arch.primary?30:(s===arch.secondary?25:(s===t?20:0))); });
-          let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=Math.min(piece[s],remaining[s]); } });
+          let score=0; STATS.forEach(s=>{ if(remaining[s]>0){ score+=Math.min(piece[s]+10,remaining[s]); } });
           const topDef = Object.entries(remaining).sort((a,b)=>b[1]-a[1])[0][0];
           if(arch.primary===topDef) score+=0.5;
           if(score>bestScore){ bestScore=score; best={arch, tertiary:t, piece}; }
         }
       }
-      const neededStats = STATS.map(s=>remaining[s]-best.piece[s]).map((v,i)=>({stat:STATS[i],value:Math.max(0,v)}));
-      neededStats.sort((a,b)=>b.value-a.value);
-      best.mod_assignment = neededStats.map((m,i)=>i===0?{stat:m.stat,value:Math.min(m.value,10)}:{stat:m.stat,value:0});
-      chosen.push(best); remaining = capFloor(sub(remaining,best.piece));
+      const mod_assignment = STATS.map(s=>{
+        const req = remaining[s]-best.piece[s];
+        return {stat:s, value: req>10?10:req>0?req:0};
+      });
+      best.mod_assignment = mod_assignment;
+      chosen.push(best);
+      STATS.forEach(s=>{
+        remaining[s]-= (best.piece[s] + best.mod_assignment.find(m=>m.stat===s).value);
+        if(remaining[s]<0) remaining[s]=0;
+      });
     }
     return {chosen, remaining};
   }
@@ -133,7 +139,7 @@
     const caps=computeCaps();
     const over = STATS.filter(s=>desired[s]>caps[s]);
     const piecesEl = document.getElementById('pieces'); piecesEl.innerHTML='';
-    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with single stat mod per piece: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
+    if(over.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`❌ Desired stats exceed max with mods across pieces: ${over.join(', ')}`; document.getElementById('notes').textContent='Adjust stats.'; return; }
     let plan = planPieces(desired);
     const still=plan.remaining; const unmet = STATS.filter(s=>still[s]>0 && desired[s]>0);
     if(unmet.length){ document.getElementById('feasibility').className='error'; document.getElementById('feasibility').textContent=`⚠️ Gear+mods plan leaves deficits: `+unmet.map(s=>`${s} ${still[s]}`).join(', '); document.getElementById('notes').textContent='Adjust Tuning or desired stats.'; }

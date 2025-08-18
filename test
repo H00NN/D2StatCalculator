@@ -1,0 +1,82 @@
+import { useState } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+const STATS = ["Super", "Melee", "Class", "Grenade", "Health", "Weapons"];
+
+export default function D2BuildCreator() {
+  const [desiredStats, setDesiredStats] = useState(
+    Object.fromEntries(STATS.map((s) => [s, 0]))
+  );
+  const [mode, setMode] = useState("balanced"); // balanced or tuning
+
+  const MAX_POINTS = mode === "balanced" ? 103 * 5 : 100 * 5; // approx
+  const totalDesired = Object.values(desiredStats).reduce(
+    (a, b) => a + b,
+    0
+  );
+
+  const handleChange = (stat, value) => {
+    setDesiredStats({ ...desiredStats, [stat]: Number(value) });
+  };
+
+  const feasible = totalDesired <= MAX_POINTS;
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-white p-8">
+      <h1 className="text-3xl font-bold mb-6">Destiny 2 Build Creator</h1>
+
+      <div className="flex gap-4 mb-6">
+        <Button
+          variant={mode === "balanced" ? "default" : "outline"}
+          onClick={() => setMode("balanced")}
+        >
+          Balanced Tuning
+        </Button>
+        <Button
+          variant={mode === "tuning" ? "default" : "outline"}
+          onClick={() => setMode("tuning")}
+        >
+          Stat Tuning Mods
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {STATS.map((stat) => (
+          <Card key={stat} className="bg-gray-900">
+            <CardContent className="p-4">
+              <label className="block mb-2 font-semibold">{stat}</label>
+              <input
+                type="range"
+                min="0"
+                max="200"
+                step="5"
+                value={desiredStats[stat]}
+                onChange={(e) => handleChange(stat, e.target.value)}
+                className="w-full"
+              />
+              <div className="mt-2 text-sm">{desiredStats[stat]}</div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="mt-6">
+        <p className="text-lg">
+          Total Desired: <span className="font-bold">{totalDesired}</span> /
+          {MAX_POINTS}
+        </p>
+        {!feasible && (
+          <p className="text-red-400 mt-2">
+            ❌ Impossible build – exceeds maximum stat budget.
+          </p>
+        )}
+        {feasible && (
+          <p className="text-green-400 mt-2">
+            ✅ Build is within limits. Archetype suggestion logic coming here.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

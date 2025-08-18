@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Destiny 2 Build Creator (Armor 4.1)</title>
+  <title>Destiny 2 Build Creator (Armor 4.3)</title>
   <style>
     :root{--bg:#0f1020;--card:#191a2e;--muted:#9aa3b2;--ok:#4ade80;--bad:#f87171;--accent:#60a5fa}
     *{box-sizing:border-box}
@@ -28,8 +28,8 @@
   </style>
 </head>
 <body>
-  <h1>Destiny 2 Build Creator — Armor 4.1</h1>
-  <div class="version" id="versionIndicator">v0.30</div>
+  <h1>Destiny 2 Build Creator — Armor 4.3</h1>
+  <div class="version" id="versionIndicator">v0.33</div>
 
   <div id="statsContainer" class="grid"></div>
   <div class="result"><p id="feasibility"></p></div>
@@ -60,25 +60,7 @@
     return dist;
   }
 
-  function maxStatPossible(target, currentStat){
-    // Dynamically calculate max achievable value for each stat based on current target
-    let remainingPieces = 5;
-    let maxPerStat = {};
-    STATS.forEach(s=>{
-      maxPerStat[s]=0;
-    });
-    // For simplicity, allow max 200 per stat but enforce achievable based on 5 pieces
-    STATS.forEach(s=>{
-      let maxPrimary = 30*5;
-      let maxSecondary = 25*5;
-      let maxTertiary = 20*5;
-      let maxMasterwork = 5*5; // leftover points
-      let maxStatMod = 10*5;
-      let total = maxPrimary + maxSecondary + maxTertiary + maxMasterwork + maxStatMod;
-      maxPerStat[s] = Math.min(200,total);
-    });
-    return maxPerStat[currentStat];
-  }
+  function maxStatPossible(){ return 200; }
 
   function planPieces(target){
     let remaining = Object.fromEntries(STATS.map(s=>[s,target[s]]));
@@ -95,19 +77,18 @@
         }
       }
 
-      let mod_assignment = STATS.map(s=>({stat:s,value:0}));
-      let modUsed=false;
+      // Assign stat mod +10 and stat tuning +5 independently per piece
+      let mod_assignment = STATS.map(s=>({stat:s,value:0, tuning:false, regular:false}));
       STATS.forEach(s=>{
-        if(remaining[s]-best.piece[s]>0 && !modUsed){
-          mod_assignment.find(m=>m.stat===s).value=Math.min(remaining[s]-best.piece[s],10);
-          modUsed=true;
-        }
+        if(remaining[s]-best.piece[s]>=10){ mod_assignment.find(m=>m.stat===s).value+=10; mod_assignment.find(m=>m.stat===s).regular=true; remaining[s]-=10; }
+      });
+      STATS.forEach(s=>{
+        if(remaining[s]-best.piece[s]>0){ mod_assignment.find(m=>m.stat===s).value+=5; mod_assignment.find(m=>m.stat===s).tuning=true; remaining[s]-=5; }
       });
 
-      best.mod_assignment = mod_assignment;
-      chosen.push(best);
+      chosen.push({...best, mod_assignment});
       STATS.forEach(s=>{
-        remaining[s]-=(best.piece[s]+best.mod_assignment.find(m=>m.stat===s).value);
+        remaining[s]-=(best.piece[s]+mod_assignment.find(m=>m.stat===s).value);
         if(remaining[s]<0) remaining[s]=0;
       });
     }
@@ -121,19 +102,9 @@
       const card=document.createElement('div'); card.className='card';
       const label=document.createElement('label'); label.textContent=stat;
       const slider=document.createElement('input');
-      slider.type='range'; slider.min=0; slider.max=maxStatPossible(desired,stat); slider.step=5; slider.value=desired[stat];
+      slider.type='range'; slider.min=0; slider.max=maxStatPossible(); slider.step=5; slider.value=desired[stat];
       const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-      slider.addEventListener('input', e=>{
-        desired[stat]=parseInt(e.target.value,10);
-        val.textContent=desired[stat];
-        // Update max dynamically
-        STATS.forEach(s=>{
-          const sEl = document.querySelector(`input[type=range][data-stat='${s}']`);
-          if(sEl) sEl.max = maxStatPossible(desired,s);
-        });
-        recalc();
-      });
-      slider.setAttribute('data-stat',stat);
+      slider.addEventListener('input', e=>{ desired[stat]=parseInt(e.target.value,10); val.textContent=desired[stat]; recalc(); });
       card.append(label,slider,val); wrap.append(card);
     });
   }
@@ -143,15 +114,15 @@
     let plan = planPieces(desired);
     const remainingStats = plan.remaining;
     const impossible = STATS.filter(s=>remainingStats[s]>0);
-    
     const feas = document.getElementById('feasibility');
+
     if(impossible.length){
       feas.className='error';
       feas.textContent=`⚠️ Stat combination exceeds achievable values: `+impossible.map(s=>`${s} ${remainingStats[s]}`).join(', ');
       document.getElementById('notes').textContent='Adjust desired stats within achievable limits (max 200 per stat).';
     } else {
       feas.className='ok';
-      feas.textContent='✅ Achievable with selected archetypes and stat mods.';
+      feas.textContent='✅ Achievable with selected archetypes, stat mods, and stat tuning.';
       document.getElementById('notes').textContent='';
     }
 
@@ -163,7 +134,12 @@
       const table=document.createElement('div'); STATS.forEach(s=>{
         const row=document.createElement('div'); row.className='statline';
         const mod = c.mod_assignment.find(m=>m.stat===s && m.value>0);
-        row.innerHTML=`<span>${s}: ${c.piece[s]}${mod?` (Equip Stat Mod: +${mod.value})`:''}</span>`;
+        let modText = '';
+        if(mod){
+          if(mod.regular) modText += 'Equip +10 Mod';
+          if(mod.tuning) modText += (modText?' & ':'')+'Stat Tuning +5';
+        }
+        row.innerHTML=`<span>${s}: ${c.piece[s]}${modText?` (${modText})`:''}</span>`;
         table.appendChild(row);
       });
       el.append(header,legend,table); piecesEl.appendChild(el);
@@ -174,3 +150,4 @@
 </script>
 </body>
 </html>
+

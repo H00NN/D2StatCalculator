@@ -1,141 +1,330 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Destiny 2 Build Creator — Armor 6.0</title>
-<style>
-  body{background:#0f1020;color:#fff;font-family:ui-sans-serif,system-ui;margin:0;padding:24px;}
-  h1{font-size:1.75rem;margin-bottom:16px}
-  .version{position:absolute;top:24px;right:24px;color:#9aa3b2;font-size:.9rem}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-  .card{background:#191a2e;border-radius:12px;padding:14px;}
-  label{font-weight:700;display:block;margin-bottom:8px}
-  input[type=range]{width:100%}
-  .pieces{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
-  .piece{background:#1f2140;border-radius:10px;padding:12px}
-  .piece h3{margin:0 0 6px;font-size:1rem}
-  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:.8rem;margin-right:6px;border:1px solid #3a3f7a}
-  .statline{display:flex;justify-content:space-between;margin-bottom:4px}
-</style>
+  <meta charset="utf-8" />
+  <title>D2 Edge of Fate — Armor Builder</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--bg:#0e0f12;--card:#131417;--muted:#9aa0a6;--accent:#6ee7b7}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:var(--bg); color:#e6eef6; margin:0;padding:20px}
+    h1{margin:0 0 12px;font-size:20px}
+    .row{display:flex;gap:16px;align-items:center}
+    .col{display:flex;flex-direction:column;gap:12px}
+    .panel{background:var(--card);padding:12px;border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.6)}
+    .sliders{width:520px}
+    .slider-line{display:flex;align-items:center;gap:8px}
+    input[type=range]{flex:1}
+    label{min-width:90px}
+    .armor-grid{display:grid;grid-template-columns:repeat(1,1fr);gap:10px}
+    @media(min-width:900px){.armor-grid{grid-template-columns:repeat(2,1fr)}}
+    .slot{background:#0b0c0e;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.03)}
+    .stat{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+    .small{font-size:12px;color:var(--muted)}
+    .good{color:var(--accent)}
+    .summary{display:flex;gap:12px;flex-wrap:wrap}
+    .badge{background:#0a0b0d;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,0.03)}
+    button{background:var(--accent);border:none;color:#032; padding:8px 12px;border-radius:8px;cursor:pointer}
+    .muted{color:var(--muted)}
+    .danger{color:#ff8b8b}
+    .ok{color:#b6ffda}
+  </style>
 </head>
 <body>
-<h1>Destiny 2 Build Creator — Armor 6.0</h1>
-<div class="version" id="versionIndicator">v0.60</div>
-<div id="statsContainer" class="grid"></div>
-<div id="pieces" class="pieces"></div>
-<script>
-const STATS=["Super","Melee","Class","Grenade","Health","Weapons"];
-const ARCHETYPES=[
-  {key:"Paragon",primary:"Super",secondary:"Melee"},
-  {key:"Grenadier",primary:"Grenade",secondary:"Super"},
-  {key:"Specialist",primary:"Class",secondary:"Weapons"},
-  {key:"Brawler",primary:"Melee",secondary:"Health"},
-  {key:"Bulwark",primary:"Health",secondary:"Class"},
-  {key:"Gunner",primary:"Weapons",secondary:"Grenade"}
-];
+  <h1>Destiny 2 — Edge of Fate: Armor 3.0 Builder (with +10 stat mods)</h1>
+  <div class="row" style="gap:20px;align-items:flex-start">
+    <div class="panel sliders col">
+      <div class="small">Desired final stats (0–200)</div>
+      <div id="slidersContainer"></div>
 
-let desired=Object.fromEntries(STATS.map(s=>[s,0]));
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <label class="small">Masterwork level (per piece)</label>
+        <input id="masterworkLevel" type="range" min="0" max="5" value="0" />
+        <span id="mwVal">0</span>
+      </div>
 
-function statObj(fill=0){const o={};STATS.forEach(s=>o[s]=fill);return o;}
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <label class="small">Tuning preference</label>
+        <select id="tuningPref">
+          <option value="shift">Shift (+5 / -5) — preferred</option>
+          <option value="boost">Boost lows (+1 to three lows)</option>
+        </select>
+      </div>
 
-function pieceDistribution(arch,tertiary){
-  const dist=statObj();
-  dist[arch.primary]=30; dist[arch.secondary]=25; dist[tertiary]=20;
-  STATS.forEach(s=>{if(s!==arch.primary && s!==arch.secondary && s!==tertiary) dist[s]+=5});
-  return dist;
-}
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="autoBtn">Auto-calc build</button>
+        <div class="small muted">Results update automatically when you move sliders or press the button.</div>
+      </div>
 
-function planPieces(target){
-  let remaining=Object.fromEntries(STATS.map(s=>[s,target[s]])),chosen=[];
+      <div style="margin-top:8px" class="small muted">Notes: primary +30, secondary +25, tertiary +20. Masterwork adds +N to the three unused stats on each piece. One +10 major stat mod can be applied to a piece (max 1 per piece). Tuning per piece is either +5/-5 or +1 to three lows.</div>
+    </div>
 
-  for(let i=0;i<5;i++){
-    let best=null,bestScore=-Infinity;
-    for(const arch of ARCHETYPES){
-      const tertOptions=STATS.filter(s=>s!==arch.primary && s!==arch.secondary);
-      for(const t of tertOptions){
-        const piece=pieceDistribution(arch,t);
-        let score=0; STATS.forEach(s=>score+=Math.min(piece[s],remaining[s]));
-        if(score>bestScore) bestScore=score,best={arch,tertiary:t,piece};
+    <div class="panel col" style="flex:1;min-width:420px">
+      <div class="summary" style="margin-bottom:8px">
+        <div class="badge">Slots: Helmet • Arms • Chest • Legs • Class Item</div>
+        <div id="resultFeasibility" class="badge">Feasibility: —</div>
+        <div id="modsBadge" class="badge">+10 mods needed: —</div>
+        <div id="tuningBadge" class="badge">Tunings used: —</div>
+      </div>
+
+      <div id="resultSummary" class="small"></div>
+
+      <h3 style="margin:8px 0">Armor pieces</h3>
+      <div id="armorGrid" class="armor-grid"></div>
+    </div>
+  </div>
+
+  <script>
+    // ======================================================
+    // Core data: stats + archetypes
+    // ======================================================
+    const STATS = ['Super','Melee','Class','Weapons','Health','Grenade'];
+
+    const ARCHETYPES = [
+      {name:'Paragon', primary:0, secondary:1},    // Super / Melee
+      {name:'Grenadier', primary:5, secondary:0},  // Grenade / Super
+      {name:'Specialist', primary:2, secondary:3}, // Class / Weapons
+      {name:'Brawler', primary:1, secondary:4},   // Melee / Health
+      {name:'Bulwark', primary:4, secondary:2},   // Health / Class
+      {name:'Gunner', primary:3, secondary:5}     // Weapons / Grenade
+    ];
+
+    // Armor roll constants (Edge of Fate / Armor 3.0 tier 5 approximation)
+    const PRIMARY_VAL = 30;
+    const SECONDARY_VAL = 25;
+    const TERTIARY_VAL = 20;
+    const PLUS10 = 10; // +10 major stat mod
+
+    // UI creation
+    const slidersContainer = document.getElementById('slidersContainer');
+    const masterworkLevelEl = document.getElementById('masterworkLevel');
+    const mwVal = document.getElementById('mwVal');
+    const tuningPrefEl = document.getElementById('tuningPref');
+    const autoBtn = document.getElementById('autoBtn');
+
+    const resultFeasibility = document.getElementById('resultFeasibility');
+    const modsBadge = document.getElementById('modsBadge');
+    const tuningBadge = document.getElementById('tuningBadge');
+    const resultSummary = document.getElementById('resultSummary');
+    const armorGrid = document.getElementById('armorGrid');
+
+    const desired = new Array(STATS.length).fill(0);
+
+    // build sliders
+    STATS.forEach((s,i)=>{
+      const row = document.createElement('div'); row.className='slider-line';
+      const label = document.createElement('label'); label.textContent = s; label.title = s;
+      const range = document.createElement('input'); range.type='range'; range.min=0; range.max=200; range.value = (i===0?150:20); // default some value (Super higher)
+      const val = document.createElement('span'); val.className='small'; val.style.minWidth='36px'; val.textContent = range.value;
+      range.oninput = ()=>{ desired[i] = Number(range.value); val.textContent = range.value; computeBestBuild(); };
+      desired[i] = Number(range.value);
+      row.appendChild(label); row.appendChild(range); row.appendChild(val);
+      slidersContainer.appendChild(row);
+    });
+
+    masterworkLevelEl.oninput = ()=>{ mwVal.textContent = masterworkLevelEl.value; computeBestBuild(); };
+    mwVal.textContent = masterworkLevelEl.value;
+    autoBtn.onclick = computeBestBuild;
+
+    // ======================================================
+    // Evaluate a single archetype assignment (length = 5)
+    // Returns: {totals, perPiece, tuningsUsed, modsNeeded, modAssignment, leftoverDeficit}
+    // ======================================================
+    function evaluateAssignment(assign){
+      const masterworkLevel = Number(masterworkLevelEl.value);
+      // per-piece structure: {archIndex, primary, secondary, tertiary, stats:[6], mwLevel, assignedPlus10:false, assignedTuning:null}
+      const pieces = [];
+
+      // start with prim + sec for each piece
+      let totals = new Array(STATS.length).fill(0);
+      for(let i=0;i<5;i++){
+        const arch = ARCHETYPES[assign[i]];
+        const piece = {archIndex:assign[i], primary:arch.primary, secondary:arch.secondary, tertiary:-1, stats:new Array(STATS.length).fill(0), plus10:false, tuning:null};
+        piece.stats[arch.primary] += PRIMARY_VAL;
+        piece.stats[arch.secondary] += SECONDARY_VAL;
+        for(let s=0;s<STATS.length;s++) totals[s] += piece.stats[s];
+        pieces.push(piece);
+      }
+
+      // Greedy tertiary assignment: iterate until stable (pick per-piece tertiary among allowed stats that reduces total positive deficit)
+      // Start with no tertiaries, then choose best for each piece in sequence until no change
+      let changed = true;
+      let iter = 0;
+      while(changed && iter < 6){
+        changed = false; iter++;
+        // compute deficits
+        const deficits = totals.map((t,idx)=>Math.max(0, desired[idx] - t));
+        for(let i=0;i<pieces.length;i++){
+          const p = pieces[i];
+          const arch = ARCHETYPES[p.archIndex];
+          // allowed tert indices are those not equal to primary/secondary
+          const allowed = [];
+          for(let s=0;s<STATS.length;s++) if(s!==arch.primary && s!==arch.secondary) allowed.push(s);
+          let bestT = p.tertiary;
+          let bestScore = Infinity;
+          // try no change candidate (keep current) as baseline
+          for(const cand of allowed){
+            // compute hypothetical totals if this piece used cand as tertiary
+            const hypotheticalTotals = totals.slice();
+            // remove old tertiary contribution if previously set
+            if(p.tertiary !== -1) hypotheticalTotals[p.tertiary] -= TERTIARY_VAL;
+            hypotheticalTotals[cand] += TERTIARY_VAL;
+            // score = sum of positive deficits after hypothetical
+            const score = hypotheticalTotals.reduce((acc,val,idx)=>acc + Math.max(0, desired[idx]-val), 0);
+            if(score < bestScore){ bestScore = score; bestT = cand; }
+          }
+          if(bestT !== p.tertiary){
+            // apply change to totals
+            if(p.tertiary !== -1){ totals[p.tertiary] -= TERTIARY_VAL; p.stats[p.tertiary] -= TERTIARY_VAL; }
+            p.tertiary = bestT;
+            totals[bestT] += TERTIARY_VAL; p.stats[bestT] += TERTIARY_VAL;
+            changed = true;
+          }
+        }
+      }
+
+      // apply masterwork level (adds to the three unused stats on each piece)
+      for(let i=0;i<pieces.length;i++){
+        const p = pieces[i];
+        // unused stats are those not primary/secondary/tertiary
+        const unused = [];
+        for(let s=0;s<STATS.length;s++) if(s!==p.primary && s!==p.secondary && s!==p.tertiary) unused.push(s);
+        // give masterworkLevel to each unused stat
+        for(const u of unused){ p.stats[u] += masterworkLevel; totals[u] += masterworkLevel; }
+      }
+
+      // compute deficits and surpluses after base+mw
+      let deficits = totals.map((t,idx)=>Math.max(0, desired[idx]-t));
+      let surpluses = totals.map((t,idx)=>Math.max(0, t - desired[idx]));
+
+      // Apply tunings greedily (up to 5 tunings, one per piece)
+      const tuningPref = tuningPrefEl.value; // 'shift' or 'boost'
+      let tuningsAvailable = 5;
+      let tuningsUsed = 0;
+      if(tuningPref === 'shift'){
+        // shift tuning: +5 to a deficit stat, -5 from a surplus stat
+        while(tuningsAvailable > 0){
+          // find largest deficit and largest surplus (different stats)
+          let maxDef = 0, defIdx = -1;
+          for(let i=0;i<deficits.length;i++) if(deficits[i] > maxDef){ maxDef = deficits[i]; defIdx = i; }
+          let maxSur = 0, surIdx = -1;
+          for(let i=0;i<surpluses.length;i++) if(surpluses[i] > maxSur){ maxSur = surpluses[i]; surIdx = i; }
+          if(maxDef <= 0 || maxSur <= 0) break;
+          // apply shift
+          const shift = Math.min(5, maxDef, maxSur);
+          deficits[defIdx] -= shift;
+          surpluses[surIdx] -= shift;
+          // also reflect in totals
+          totals[defIdx] += shift;
+          totals[surIdx] -= shift;
+          tuningsAvailable--; tuningsUsed++;
+        }
+      } else {
+        // boost lows: each tuning gives +1 to the three lowest stats (we'll greedily apply to stats with highest remaining deficits)
+        while(tuningsAvailable > 0){
+          // find up to three stats with positive deficits
+          const idxs = deficits.map((d,idx)=>({d,idx})).filter(x=>x.d>0).sort((a,b)=>b.d-a.d).slice(0,3);
+          if(idxs.length===0) break;
+          for(const item of idxs){ deficits[item.idx] -= 1; totals[item.idx] += 1; if(deficits[item.idx] < 0) deficits[item.idx] = 0; }
+          tuningsAvailable--; tuningsUsed++;
+        }
+      }
+
+      // After tunings, compute remaining deficits
+      deficits = totals.map((t,idx)=>Math.max(0, desired[idx]-t));
+      let totalDeficit = deficits.reduce((a,b)=>a+b,0);
+
+      // Minimal +10 mods needed (each +10 mod can be applied to any stat on any piece)
+      let modsNeeded = Math.ceil(totalDeficit / PLUS10);
+
+      // Attempt to allocate +10 mods to actual pieces (max 1 per piece)
+      const modAssignment = new Array(5).fill(null); // {pieceIdx, statIdx}
+      const pieceUsed = new Array(5).fill(false);
+      let leftovers = deficits.slice();
+
+      for(let m=0;m<modsNeeded && m<5;m++){
+        // choose the stat with largest leftover deficit
+        let maxDef = 0, statIdx = -1;
+        for(let s=0;s<leftovers.length;s++) if(leftovers[s] > maxDef){ maxDef = leftovers[s]; statIdx = s; }
+        if(maxDef <= 0) break;
+        // find a piece that doesn't have a plus10 yet
+        let chosenPiece = -1;
+        for(let p=0;p<pieces.length;p++) if(!pieceUsed[p]){ chosenPiece = p; break; }
+        if(chosenPiece === -1) break; // no available pieces
+        pieceUsed[chosenPiece] = true; modAssignment[chosenPiece] = statIdx; // assign +10 to that stat on chosen piece
+        leftovers[statIdx] = Math.max(0, leftovers[statIdx] - PLUS10);
+      }
+
+      // recompute leftover deficit after allocation
+      const leftoverDeficit = leftovers.reduce((a,b)=>a+b,0);
+      const allocatedMods = modAssignment.filter(x=>x!==null).length;
+      const feasible = leftoverDeficit === 0 && allocatedMods <= 5;
+
+      // mark pieces with assigned mods
+      for(let i=0;i<pieces.length;i++){ if(modAssignment[i] !== null){ pieces[i].plus10 = true; pieces[i].plus10Stat = modAssignment[i]; } }
+
+      return {
+        totals, pieces, tuningsUsed, modsNeeded: allocatedMods || modsNeeded, modAssignment, leftoverDeficit, feasible
+      };
+    }
+
+    // ======================================================
+    // Search all archetype assignments (6^5 = 7776 combos) and pick the one with minimal +10 mods needed.
+    // Tie-breaker: fewer leftoverDeficit, fewer tuningsUsed.
+    // ======================================================
+    function computeBestBuild(){
+      armorGrid.innerHTML = '';
+
+      const start = performance.now();
+      let best = null;
+      // iterate all assignments (6 choices for each of 5 slots)
+      for(let a0=0;a0<6;a0++) for(let a1=0;a1<6;a1++) for(let a2=0;a2<6;a2++) for(let a3=0;a3<6;a3++) for(let a4=0;a4<6;a4++){
+        const assign = [a0,a1,a2,a3,a4];
+        const evalRes = evaluateAssignment(assign);
+        // scoring: feasible preferred, then fewer allocated +10 mods, then fewer leftover deficit, then fewer tunings used
+        const score = (evalRes.feasible?0:1)*10000 + evalRes.modsNeeded*100 + evalRes.leftoverDeficit + evalRes.tuningsUsed*0.01;
+        if(!best || score < best.score){ best = {score, assign, evalRes}; }
+      }
+      const t = performance.now()-start;
+
+      // display best result
+      if(!best){ resultFeasibility.textContent = 'No assignment found'; return; }
+      const r = best.evalRes;
+      resultFeasibility.textContent = `Feasibility: ${r.feasible ? 'Yes' : 'No'}`;
+      modsBadge.textContent = `+10 mods needed (allocated): ${r.modsNeeded}`;
+      tuningBadge.textContent = `Tunings used: ${r.tuningsUsed}`;
+
+      // summary totals
+      const totalsText = r.totals.map((v,i)=>`${STATS[i]}: ${v}`).join(' • ');
+      resultSummary.innerHTML = `<div class="small">Calculated totals — ${totalsText}</div><div class="small muted">Search time: ${t.toFixed(0)}ms (greedy tertiary + tuning approximation)</div>`;
+
+      // fill armor grid with per-piece breakdown
+      armorGrid.innerHTML = '';
+      for(let i=0;i<r.pieces.length;i++){
+        const p = r.pieces[i];
+        const arch = ARCHETYPES[p.archIndex];
+        const slotDiv = document.createElement('div'); slotDiv.className='slot panel';
+        const header = document.createElement('div'); header.innerHTML = `<strong>Slot ${i+1} — ${arch.name}</strong> <div class="small muted">arch ${p.archIndex}</div>`;
+        slotDiv.appendChild(header);
+        // list stats
+        for(let s=0;s<STATS.length;s++){
+          const statLine = document.createElement('div'); statLine.className='stat';
+          const left = document.createElement('div'); left.textContent = STATS[s];
+          const right = document.createElement('div'); right.textContent = p.stats[s];
+          if(p.primary === s) right.className='good';
+          if(p.secondary === s) right.className='good';
+          if(p.tertiary === s) right.className='small';
+          if(p.plus10 && p.plus10Stat === s) right.textContent = right.textContent + '  (+10)';
+          statLine.appendChild(left); statLine.appendChild(right);
+          slotDiv.appendChild(statLine);
+        }
+        if(p.plus10) slotDiv.appendChild(Object.assign(document.createElement('div'),{innerHTML:`<div class="small ok">+10 mod applied to ${STATS[p.plus10Stat]}</div>`}))
+        if(p.tertiary !== -1) slotDiv.appendChild(Object.assign(document.createElement('div'),{innerHTML:`<div class="small muted">Primary: ${STATS[p.primary]} (+${PRIMARY_VAL}), Secondary: ${STATS[p.secondary]} (+${SECONDARY_VAL}), Tertiary: ${STATS[p.tertiary]} (+${TERTIARY_VAL})</div>`}))
+        armorGrid.appendChild(slotDiv);
       }
     }
 
-    let modAssignment=STATS.map(s=>({stat:s,value:0,regular:false,tuning:false}));
-    let usedRegular=false,usedTuning=false;
-
-    // Assign one +10 stat mod per piece if still needed
-    STATS.forEach(s=>{
-      if(!usedRegular && remaining[s]-best.piece[s]>=10){
-        const m=modAssignment.find(m=>m.stat===s); m.value+=10; m.regular=true; remaining[s]-=10; usedRegular=true;
-      }
-    });
-
-    // Assign one +5 tuning mod per piece if still needed
-    STATS.forEach(s=>{
-      if(!usedTuning && remaining[s]-best.piece[s]>=5){
-        const m=modAssignment.find(m=>m.stat===s); m.value+=5; m.tuning=true; remaining[s]-=5; usedTuning=true;
-      }
-    });
-
-    chosen.push({...best,modAssignment});
-  }
-
-  // Clamp sliders and desired values to achievable totals
-  STATS.forEach(s=>{
-    let total=0;
-    chosen.forEach(p=>total+=p.piece[s]+(p.modAssignment.find(m=>m.stat===s)?.value||0));
-    if(total>200) desired[s]=200;
-  });
-
-  return chosen;
-}
-
-function recalc(){
-  const piecesEl=document.getElementById('pieces'); piecesEl.innerHTML='';
-  const plan=planPieces(desired);
-
-  plan.forEach((c,idx)=>{
-    const el=document.createElement('div'); el.className='piece';
-    el.innerHTML=`<h3>Piece ${idx+1}: ${c.arch.key}</h3>`;
-    const legend=document.createElement('div'); legend.className='pill';
-    legend.textContent=`Primary: ${c.arch.primary} +30 | Secondary: ${c.arch.secondary} +25 | Tertiary: ${c.tertiary} +20`;
-    el.appendChild(legend);
-
-    STATS.forEach(s=>{
-      const row=document.createElement('div'); row.className='statline';
-      const mod=c.modAssignment.find(m=>m.stat===s && m.value>0);
-      let modText='';
-      if(mod){
-        if(mod.regular) modText+=' +10 Stat Mod';
-        if(mod.tuning) modText+=(modText?' & ':'')+' +5 Tuning Mod';
-      }
-      row.textContent=`${s}: ${c.piece[s]}${modText}`;
-      el.appendChild(row);
-    });
-    piecesEl.appendChild(el);
-  });
-}
-
-function renderSliders(){
-  const wrap=document.getElementById('statsContainer'); wrap.innerHTML='';
-  STATS.forEach(stat=>{
-    const card=document.createElement('div'); card.className='card';
-    const label=document.createElement('label'); label.textContent=stat;
-    const slider=document.createElement('input'); slider.type='range'; slider.min=0; slider.max=200; slider.step=5; slider.value=desired[stat];
-    const val=document.createElement('span'); val.className='small'; val.style.marginLeft='8px'; val.textContent=desired[stat];
-    slider.addEventListener('input', e=>{
-      let valInt=parseInt(e.target.value,10);
-      // Clamp slider to achievable maximum per stat
-      valInt=Math.min(valInt,200);
-      desired[stat]=valInt;
-      val.textContent=desired[stat];
-      recalc();
-    });
-    card.append(label,slider,val); wrap.appendChild(card);
-  });
-}
-
-renderSliders(); recalc();
-</script>
+    // initial run
+    computeBestBuild();
+  </script>
 </body>
 </html>

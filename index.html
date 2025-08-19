@@ -101,7 +101,10 @@ function evaluateBuild(assign){
   let deficits = desired.map((d,idx)=>Math.max(0,d-totals[idx]));
   let modsNeeded = Math.ceil(deficits.reduce((a,b)=>a+b,0)/PLUS10);
   if(modsNeeded>5) modsNeeded=5;
-  return {totals,pieces,modsNeeded};
+  // Apply mods to totals for max slider calculation
+  let totalWithMods = totals.map((v,i)=>v + Math.min(deficits[i], modsNeeded*PLUS10));
+  totalWithMods = totalWithMods.map(v=>Math.min(v, MAX_STAT));
+  return {totals,totalWithMods,pieces,modsNeeded};
 }
 
 function solveBuild(){
@@ -131,7 +134,7 @@ function updateArmor(){
 function updateSlidersMax(){
   const r=solveBuild();
   sliders.forEach((s,i)=>{
-    s.max = r.totals[i];
+    s.max = r.totalWithMods[i];
   });
 }
 
@@ -139,3 +142,4 @@ autoCalcBtn.onclick=()=>{updateArmor(); updateSlidersMax();};
 </script>
 </body>
 </html>
+
